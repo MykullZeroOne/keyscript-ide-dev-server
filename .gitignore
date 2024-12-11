@@ -1,0 +1,11 @@
+_deprecated
+**/node_modules/*
+package-lock.json
+pnpm-lock.yaml
+
+*.bak
+*.map
+**/scripts/**/*.js
+**/server/**/*.js
+.env
+*.pem

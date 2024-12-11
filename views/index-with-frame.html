@@ -1,0 +1,79 @@
+<html>
+  {{ head-section }}
+  <body>
+    <script type="text/javascript">
+      const btnLogin = new CR.ToolbarButton({
+        text: "Login",
+        handler: function () {
+          CR.Login.performLogin();
+        },
+      });
+
+      const btnRecord = new CR.ToolbarButton({
+        text: "Record",
+        handler: function () {
+          CR.Core.ajaxRequest({
+            url: "api/record",
+            success: (response) => {},
+            //failure: otherFn,
+            headers: {
+              "my-header": "foo",
+            },
+            params: { foo: "bar" },
+          });
+          //CR.Login.performLogoff();
+        },
+      });
+
+      const btnStop = new CR.ToolbarButton({
+        text: "Stop",
+        handler: function () {
+          CR.Core.ajaxRequest({
+            url: "api/stop",
+            success: (response) => {},
+            //failure: otherFn,
+            headers: {
+              "my-header": "foo",
+            },
+            params: { foo: "bar" },
+          });
+          //CR.Login.performLogoff();
+        },
+      });
+
+      const iframe = new Ext.Panel({
+        frame: false,
+        //autoHeight: true,
+        //title: document.location,
+        html: `<iframe 
+             src="{{ protocol }}://localhost:${
+               new URL(document.location).port
+             }/frame.html"
+             frameborder="0" border="0" 
+             cellspacing="0"
+             style="border-style: none;width: 100%; height: 500px;">
+           </iframe>`,
+      });
+
+      const mainPanel = new Ext.Panel({
+        labelWidth: 75,
+        frame: true,
+        title: "KeyScript UI Workspace",
+        //bodyStyle: "padding:5px",
+        autoHeight: true,
+        buttonAlign: "left",
+        style: {
+          width: "100%",
+        },
+        tbar: [btnLogin, btnRecord, btnStop],
+        items: [iframe],
+      });
+
+      CR.Core.viewPort = new Ext.Viewport({
+        layout: "border",
+        autoHeight: true,
+        items: [mainPanel],
+      });
+    </script>
+  </body>
+</html>

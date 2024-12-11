@@ -1,0 +1,17 @@
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>KeyScript IDE - Corelation Inc.</title>
+    <link rel="icon" type="image/png" href="images/logo-corelation.png" />
+    <script type="text/javascript" src="JSCSSLoader?isIDE=true"></script>
+  </head>
+  <body>
+    <script type="text/javascript">
+      Ext.onReady(function () {
+        CR.KeyStoneService.SERVICE_BASE_URL = "{{ protocol }}://localhost:{{ servicePort}}";
+        CR.Core.keyStoneWebAppURL = '{{ protocol }}://localhost:{{ hostPort }}/Test/';
+        CR.mainPage();
+      });
+    </script>
+  </body>
+</html>

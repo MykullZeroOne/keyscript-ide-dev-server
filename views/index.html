@@ -1,0 +1,12 @@
+<html>
+  {{ head-section }}
+  <body>
+    <script>
+      function tailsep(s) { return s.endsWith('/') ? s : `${s}/`; }
+      (function() {
+        CR.Core.keyStoneWebAppURL = tailsep(document.location.href); 
+      })();
+      </script>
+    <script type="text/javascript" src="/scripts/{{ script }}.js"></script>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+<html>
+  {{ head-section }}
+  <body>
+    <!-- <script type="text/javascript" src="/scripts/{{ script }}.js"></script> -->
+    <script type="text/javascript">
+      window.CRFormatXML = true;
+      CR.Core.defer(function () {
+        var scriptParameters = {{ scriptParameters }};
+        Ext.apply(CR.Login, scriptParameters.crlogin);
+        Ext.apply(CR.Script, scriptParameters.crscript);
+        CR.Script.scriptSerial = "";
+        CR.Script.scriptDescription = "{{ script }}";
+        CR._scriptReady = true;
+        var script = document.createElement("script");
+        script.src = "/scripts/{{ script }}.js";
+        document.body.appendChild(script);
+      });
+    </script>
+  </body>
+</html>
