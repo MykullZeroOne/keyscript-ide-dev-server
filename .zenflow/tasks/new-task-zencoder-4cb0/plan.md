@@ -53,7 +53,7 @@ Do not make assumptions on important decisions — get clarification first.
 - Support multiple tabs for open scripts
 - Implement Save functionality via IPC
 
-### [ ] Step: Feature: Script Runner (Webview)
+### [x] Step: Feature: Script Runner (Webview)
 <!-- chat-id: 88897bb5-d861-4fd8-b834-d3b19dcdfb12 -->
 - Implement Main workspace view with `<webview>`
 - Build the server-side runtime shell (`RunScript` route)
@@ -61,6 +61,7 @@ Do not make assumptions on important decisions — get clarification first.
 - Add "Run" button to the toolbar
 
 ### [ ] Step: Features: Developer Tools (Console, Inspector, Terminal)
+<!-- chat-id: b96e7613-df17-4709-8c50-3c0c37a9cd32 -->
 - Console: Capture `console.log` from the webview and display in a bottom tab
 - Inspector: Log proxied network requests in a bottom tab
 - Terminal: Integrate `node-pty` + `xterm.js` for an integrated shell

@@ -2,6 +2,7 @@ import React from 'react';
 import { FeatureDefinition } from '../types';
 import MonacoEditor from './MonacoEditor';
 import { useFeatureStore } from '../../store/useFeatureStore';
+import { useConsoleStore } from '../console/useConsoleStore';
 
 const EditorFeature: FeatureDefinition = {
   id: 'editor',
@@ -13,6 +14,25 @@ const EditorFeature: FeatureDefinition = {
 export const EditorWorkspace: React.FC = () => {
   const { openTabs, activeTabId, setActiveTab, closeTab } = useFeatureStore();
   const activeTab = openTabs.find(t => t.id === activeTabId);
+  const addConsoleMessage = useConsoleStore(state => state.addMessage);
+
+  React.useEffect(() => {
+    const handleConsole = (e: any) => {
+      let level: 'info' | 'log' | 'warn' | 'error' = 'info';
+      if (e.level === 2) level = 'warn';
+      if (e.level === 3) level = 'error';
+      addConsoleMessage(level, e.message);
+    };
+
+    // This is a bit tricky since webviews are added dynamically.
+    // We'll use a mutation observer or just handle it in a sub-component if needed.
+    // For now, let's try to find all webviews.
+    const webviews = document.querySelectorAll('webview');
+    webviews.forEach(wv => {
+      wv.removeEventListener('console-message', handleConsole);
+      wv.addEventListener('console-message', handleConsole);
+    });
+  }, [openTabs, addConsoleMessage]);
 
   if (openTabs.length === 0) {
     return <div className="flex items-center justify-center h-full text-slate-500">No file open</div>;
@@ -49,8 +69,9 @@ export const EditorWorkspace: React.FC = () => {
         {activeTab && activeTab.type === 'preview' && (
           <div className="h-full bg-white">
             <webview 
-              src={`http://localhost:3000/Test/Keyscript_IDE/RunScript?scriptPath=${activeTab.path}`} 
+              src={`${window.location.origin}/Test/Keyscript_IDE/RunScript?scriptPath=${activeTab.path}`} 
               className="w-full h-full"
+              allowpopups="true"
             />
           </div>
         )}

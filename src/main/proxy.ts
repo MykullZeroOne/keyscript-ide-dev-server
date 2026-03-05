@@ -15,7 +15,14 @@ let ideParamsSeq = 0;
 
 const KeybridgeEndpoints = ['/DirectXMLPostJSON', '/UserLogin', '/LoginUserInterface', '/TableListJSON', '/TableBrowser', '/SearchJSON'];
 
-export function setupProxy(rootPath: string, hostPort: number, servicePort: number, proxyEndpoint: string, supportedInstances: string[]) {
+export function setupProxy(
+  rootPath: string, 
+  hostPort: number, 
+  servicePort: number, 
+  proxyEndpoint: string, 
+  supportedInstances: string[],
+  onNetworkEvent?: (event: any) => void
+) {
   const app: Express = express();
   
   app.use(session({
@@ -99,9 +106,30 @@ export function setupProxy(rootPath: string, hostPort: number, servicePort: numb
         (srcReq as any).params = { ...(srcReq as any).params, seq };
         ideParamsData[seq] = usp.get('value') ?? '';
       }
+
+      // Capture request for Inspector
+      if (onNetworkEvent) {
+        onNetworkEvent({
+          type: 'request',
+          id: (srcReq as any).requestId ??= Math.random().toString(36).substr(2, 9),
+          method: srcReq.method,
+          url: srcReq.url,
+          body: bodyContent.toString('utf-8')
+        });
+      }
+
       return bodyContent;
     },
     userResDecorator: function (proxyRes, proxyResData, userReq, userRes) {
+      // Capture response for Inspector
+      if (onNetworkEvent) {
+        onNetworkEvent({
+          type: 'response',
+          id: (userReq as any).requestId,
+          status: proxyRes.statusCode,
+          body: proxyResData.toString('utf-8')
+        });
+      }
       if (userReq.originalUrl.endsWith('/SessionStore')) {
         try {
           const store = JSON.parse(proxyResData.toString('utf-8')) as { success: boolean, id: string };

@@ -13,7 +13,12 @@ const api = {
   onTerminalData: (callback: (data: string) => void) => {
     ipcRenderer.on('terminal:data', (_, data) => callback(data))
   },
-  resizeTerminal: (cols: number, rows: number) => ipcRenderer.send('terminal:resize', { cols, rows })
+  resizeTerminal: (cols: number, rows: number) => ipcRenderer.send('terminal:resize', { cols, rows }),
+  
+  // Network
+  onNetworkEvent: (callback: (event: any) => void) => {
+    ipcRenderer.on('network:event', (_, event) => callback(event))
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

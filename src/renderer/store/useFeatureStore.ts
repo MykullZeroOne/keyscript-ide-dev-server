@@ -21,6 +21,7 @@ interface FeatureState {
   registerFeature: (feature: FeatureDefinition) => void;
   initializeFeatures: () => Promise<void>;
   openEditor: (id: string, path: string, label: string) => void;
+  runScript: (path: string, paramsId?: string) => void;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
 }
@@ -53,7 +54,7 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
         const ctx: FeatureContext = {
           setActiveSidebarPanel: (id: string) => {}, // Implement in shell context or here
           openEditor: (id: string, path: string, label: string) => get().openEditor(id, path, label),
-          runScript: (path: string, paramsId: string) => {} // Handle later
+          runScript: (path: string, paramsId?: string) => get().runScript(path, paramsId)
         };
         await feature.initialize(ctx);
       }
@@ -68,6 +69,32 @@ export const useFeatureStore = create<FeatureState>((set, get) => ({
     } else {
       set({ 
         openTabs: [...openTabs, { id, path, label, type: 'editor' }],
+        activeTabId: id
+      });
+    }
+  },
+
+  runScript: (path, paramsId) => {
+    const { openTabs } = get();
+    const label = `Preview: ${path.split('/').pop()}`;
+    const id = `preview-${path}`;
+    const existing = openTabs.find(t => t.id === id);
+    
+    // Construct URL with optional paramsId
+    let previewPath = path;
+    if (paramsId) {
+      previewPath += `&scriptParametersId=${paramsId}`;
+    }
+
+    if (existing) {
+      // Update existing preview tab with new path/params if needed
+      set((state) => ({
+        openTabs: state.openTabs.map(t => t.id === id ? { ...t, path: previewPath } : t),
+        activeTabId: id
+      }));
+    } else {
+      set({ 
+        openTabs: [...openTabs, { id, path: previewPath, label, type: 'preview' }],
         activeTabId: id
       });
     }

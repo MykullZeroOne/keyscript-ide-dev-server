@@ -56,7 +56,12 @@ app.whenReady().then(() => {
   const proxyEndpoint = process.env.PROXY_ENDPOINT || 'keystone:8443';
   const supportedInstances = (process.env.SUPPORTED_INSTANCES || 'Test').split('|');
 
-  setupProxy(rootPath, hostPort, servicePort, proxyEndpoint, supportedInstances);
+  setupProxy(rootPath, hostPort, servicePort, proxyEndpoint, supportedInstances, (event) => {
+    const windows = BrowserWindow.getAllWindows();
+    if (windows.length > 0) {
+      windows[0].webContents.send('network:event', event);
+    }
+  });
   
   // Setup IPC handlers
   setupIpc();

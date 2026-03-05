@@ -27,7 +27,7 @@ export interface StatusBarItem {
 export interface FeatureContext {
   setActiveSidebarPanel: (id: string) => void;
   openEditor: (id: string, path: string, label: string) => void;
-  runScript: (path: string, paramsId: string) => void;
+  runScript: (path: string, paramsId?: string) => void;
 }
 
 export interface FeatureDefinition {
