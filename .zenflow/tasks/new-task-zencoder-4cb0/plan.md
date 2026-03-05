@@ -42,7 +42,8 @@ Do not make assumptions on important decisions — get clarification first.
 - Implement `StatusBarItem` for auth status
 - Wire up with proxied `/UserLogin` endpoint
 
-### [ ] Step: Feature: Script Explorer (File Tree)
+### [x] Step: Feature: Script Explorer (File Tree)
+<!-- chat-id: cb7690d3-2b1d-475f-bf63-1bbfe3eede9e -->
 - Implement sidebar panel for browsing scripts
 - Use `KeyscriptServlet/List` for fetching directory contents
 - Open script files in the editor on click
