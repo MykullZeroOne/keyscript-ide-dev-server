@@ -18,9 +18,50 @@ Do not make assumptions on important decisions — get clarification first.
 
 ## Workflow Steps
 
-### [ ] Step: Implementation
-- If task is small and clear -> jump directly to implementation, without any additional steps or planning
-- If the task is complex enough, plan how you want to address it. Plan can include requirements, tech specification and key implementation steps.
-- Break down the work into concrete tasks (incrementable, testable milestones). Rule of thumb for step size: each step should represent a coherent unit of work (e.g., implement a component, add an API endpoint, write tests for a module). Avoid steps that are too granular (single function).
-- To reflect actual purpose of the first step, you can update step Implementation, renaming it to something more relevant, like Planning. Do NOT remove meta information, like comments for any step.
-- Update `{@artifacts_path}/plan.md`.
+### [x] Step: Planning
+- Analyze the original codebase (Express server, ExtJS app, and KeyScript runtime)
+- Document API protocols, authentication flow, and script execution flow
+- Map original features to a new plugin architecture
+- Create a detailed implementation plan for the Electron + React rebuild
+
+### [ ] Step: Electron Main Process & Proxy Port
+- Set up `electron-vite` project structure
+- Port proxy server from `server/main.ts` to Electron main process
+- Handle `JSESSIONID` cookie rewriting and `SessionStore` interception
+- Implement local routes for `KeyscriptServlet/List` and `GetDeviceInformation`
+
+### [ ] Step: Core Plugin Registry & Layout
+- Implement feature registry system with Zustand
+- Build the main shell layout with `allotment` (Activity Bar, Sidebar, Editor, Bottom Panel, Status Bar)
+- Set up `FeatureContext` for plugins to interact with the shell
+
+### [ ] Step: Feature: Authentication (Login)
+- Create login UI (Dialog)
+- Implement `StatusBarItem` for auth status
+- Wire up with proxied `/UserLogin` endpoint
+
+### [ ] Step: Feature: Script Explorer (File Tree)
+- Implement sidebar panel for browsing scripts
+- Use `KeyscriptServlet/List` for fetching directory contents
+- Open script files in the editor on click
+
+### [ ] Step: Feature: Editor (Monaco)
+- Integrate Monaco editor into the main workspace
+- Support multiple tabs for open scripts
+- Implement Save functionality via IPC
+
+### [ ] Step: Feature: Script Runner (Webview)
+- Implement Main workspace view with `<webview>`
+- Build the server-side runtime shell (`RunScript` route)
+- Inject parameters and `keyscript-all.js` into the webview
+- Add "Run" button to the toolbar
+
+### [ ] Step: Features: Developer Tools (Console, Inspector, Terminal)
+- Console: Capture `console.log` from the webview and display in a bottom tab
+- Inspector: Log proxied network requests in a bottom tab
+- Terminal: Integrate `node-pty` + `xterm.js` for an integrated shell
+
+### [ ] Step: Final Integration & Testing
+- Test login persistence
+- Verify script execution with complex ExtJS components
+- Ensure search (Person/Account) works correctly through the proxy
