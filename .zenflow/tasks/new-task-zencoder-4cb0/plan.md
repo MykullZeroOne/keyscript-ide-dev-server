@@ -19,18 +19,19 @@ Do not make assumptions on important decisions — get clarification first.
 ## Workflow Steps
 
 ### [x] Step: Planning
+<!-- chat-id: bce4e3ee-f3f9-44cf-ab3f-16f76e760f94 -->
 - Analyze the original codebase (Express server, ExtJS app, and KeyScript runtime)
 - Document API protocols, authentication flow, and script execution flow
 - Map original features to a new plugin architecture
 - Create a detailed implementation plan for the Electron + React rebuild
 
-### [ ] Step: Electron Main Process & Proxy Port
+### [x] Step: Electron Main Process & Proxy Port
 - Set up `electron-vite` project structure
 - Port proxy server from `server/main.ts` to Electron main process
 - Handle `JSESSIONID` cookie rewriting and `SessionStore` interception
 - Implement local routes for `KeyscriptServlet/List` and `GetDeviceInformation`
 
-### [ ] Step: Core Plugin Registry & Layout
+### [x] Step: Core Plugin Registry & Layout
 - Implement feature registry system with Zustand
 - Build the main shell layout with `allotment` (Activity Bar, Sidebar, Editor, Bottom Panel, Status Bar)
 - Set up `FeatureContext` for plugins to interact with the shell
@@ -45,7 +46,7 @@ Do not make assumptions on important decisions — get clarification first.
 - Use `KeyscriptServlet/List` for fetching directory contents
 - Open script files in the editor on click
 
-### [ ] Step: Feature: Editor (Monaco)
+### [x] Step: Feature: Editor (Monaco)
 - Integrate Monaco editor into the main workspace
 - Support multiple tabs for open scripts
 - Implement Save functionality via IPC
