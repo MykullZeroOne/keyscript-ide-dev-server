@@ -1,31 +1,19 @@
+import React from 'react';
+import { Files } from 'lucide-react';
+import { FeatureDefinition } from '../types';
+import { ScriptExplorerPanel } from './ScriptExplorerPanel';
 
-import { FileText } from 'lucide-react'
-import { registerFeature } from '../../shell/FeatureRegistry'
-import { FileTree } from './FileTree'
-import { useEditorStore } from '../editor/EditorStore'
+const ScriptExplorerFeature: FeatureDefinition = {
+  id: 'script-explorer',
+  name: 'Script Explorer',
+  sidebarPanels: [
+    {
+      id: 'script-explorer',
+      icon: <Files size={18} />,
+      label: 'Script Explorer',
+      component: ScriptExplorerPanel
+    }
+  ]
+};
 
-export const registerScriptExplorerFeature = () => {
-  registerFeature({
-    id: 'script-explorer',
-    name: 'Explorer',
-    sidebarPanels: [
-      {
-        id: 'script-explorer',
-        name: 'Explorer',
-        icon: FileText,
-        render: () => {
-          const { openFile } = useEditorStore()
-          return (
-            <FileTree onFileClick={(node) => {
-              if (node.leaf && node.scriptPath) {
-                // The scriptPath from server is like "sample-script.js"
-                // We want to fetch it from the server.
-                openFile(`scripts/${node.scriptPath}`, node.text)
-              }
-            }} />
-          )
-        }
-      }
-    ]
-  })
-}
+export default ScriptExplorerFeature;

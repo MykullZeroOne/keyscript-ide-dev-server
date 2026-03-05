@@ -1,21 +1,33 @@
+import { FeatureDefinition } from '../types';
+import LoginStatusBarItem from './LoginStatusBarItem';
+import { useAuthStore } from '../../store/useAuthStore';
 
-import { registerFeature } from '../../shell/FeatureRegistry'
-import { LoginDialog } from './LoginDialog'
-import { LoginStatusBar } from './LoginStatusBar'
-
-export const registerLoginFeature = () => {
-  registerFeature({
-    id: 'login',
-    name: 'Authentication',
-    statusBarItems: [
-      {
-        id: 'login-status',
-        render: () => <LoginStatusBar />,
-        position: 'left'
+const LoginFeature: FeatureDefinition = {
+  id: 'login',
+  name: 'Authentication',
+  initialize: async () => {
+    try {
+      // Check session status on load
+      const response = await fetch('/UserLogin?loginStatus=Y');
+      const data = await response.json();
+      if (data.success) {
+        useAuthStore.getState().setLogin(
+          data.userName || 'Logged In', 
+          data.databaseName || 'Test',
+          data.JSESSIONID
+        );
       }
-    ],
-    overlays: [
-      () => <LoginDialog />
-    ]
-  })
-}
+    } catch (e) {
+      console.warn('Failed to check session status', e);
+    }
+  },
+  statusBarItems: [
+    {
+      id: 'login-status',
+      alignment: 'left',
+      component: LoginStatusBarItem
+    }
+  ]
+};
+
+export default LoginFeature;

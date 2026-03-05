@@ -1,158 +1,170 @@
-import React, { useState } from 'react'
-import { useLoginStore } from './LoginStore'
-import { LogIn, Server, User, Lock, AlertCircle } from 'lucide-react'
+import React, { useState, useEffect } from 'react';
+import { useAuthStore } from '../../store/useAuthStore';
+import { LogIn, Server, User, Lock, AlertCircle } from 'lucide-react';
 
-export const LoginDialog: React.FC = () => {
-  const { showLoginDialog, setLoggedIn, instance, setInstance } = useLoginStore()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+interface LoginDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
 
-  if (!showLoginDialog) return null
+const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [instance, setInstance] = useState('Test');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const setLogin = useAuthStore(state => state.setLogin);
+
+  if (!isOpen) return null;
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
 
     try {
-      // Proxy handles /UserLogin. We need to send XML as per Keystone API.
-      // Format from original ide-all.js (inferred):
-      // <userLogin><userName>{username}</userName><password>{password}</password></userLogin>
-      
-      const xml = `<?xml version="1.0" encoding="UTF-8"?><userLogin><userName>${username}</userName><password>${password}</password></userLogin>`
-      
-      const response = await fetch('/UserLogin', {
+      // 1. Get Device Information
+      // In the real app, this might be on a different port, but the proxy mocks it.
+      // We'll try to fetch it from the proxy's service port.
+      const servicePort = 3001; // Should probably be dynamic
+      let deviceIdentifier = '';
+      try {
+        const deviceRes = await fetch(`http://localhost:${servicePort}/GetDeviceInformation`);
+        const deviceXml = await deviceRes.text();
+        const match = deviceXml.match(/<identifier>(.*?)<\/identifier>/);
+        if (match) deviceIdentifier = match[1];
+      } catch (e) {
+        console.warn('Failed to get device information', e);
+      }
+
+      // 2. Perform Login
+      // The proxy expects the instance in the URL or it uses the last one seen.
+      // We should probably hit /{instance}/UserLogin
+      const response = await fetch(`/${instance}/UserLogin`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'text/xml',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: xml
-      })
+        body: new URLSearchParams({
+          loginUsername: username,
+          loginPassword: password,
+          loginDeviceIdentifier: deviceIdentifier,
+          loginDeviceInsertOption: 'N'
+        })
+      });
 
-      if (!response.ok) {
-        throw new Error('Network response was not ok')
-      }
+      const data = await response.json();
 
-      const responseText = await response.text()
-      // Keystone usually returns XML or JSON depending on Accept header, but /UserLogin seems to return JSON in the proxy logic if JSESSIONID is present
-      // Let's try to parse as JSON first
-      try {
-        const data = JSON.parse(responseText)
-        if (data.JSESSIONID || data.success) {
-          setLoggedIn(true, username)
-        } else {
-          setError('Login failed. Please check your credentials.')
-        }
-      } catch (e) {
-        // If it's XML, we should check for success attribute
-        if (responseText.includes('success="true"') || responseText.includes('<JSESSIONID>')) {
-          setLoggedIn(true, username)
-        } else {
-          setError('Login failed. Please check your credentials.')
-        }
+      if (data.success) {
+        setLogin(username, instance, data.JSESSIONID);
+        onClose();
+      } else {
+        setError(data.exception?.join(' ') || 'Login failed');
       }
     } catch (err) {
-      setError('An error occurred during login. Please try again.')
-      console.error('Login error:', err)
+      setError('An error occurred during login');
+      console.error(err);
     } finally {
-      setLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-gray-900 border border-gray-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="bg-gray-800/50 px-6 py-4 border-b border-gray-700 flex items-center gap-3">
-          <div className="bg-blue-600/20 p-2 rounded-lg text-blue-400">
-            <LogIn size={20} />
-          </div>
-          <h2 className="text-xl font-bold text-white tracking-tight">Connect to Keystone</h2>
-        </div>
-        
-        <form onSubmit={handleLogin} className="p-6 space-y-4">
-          {error && (
-            <div className="bg-red-900/20 border border-red-800/50 p-3 rounded-lg flex items-center gap-3 text-red-400 text-sm">
-              <AlertCircle size={18} />
-              <span>{error}</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden">
+        <div className="p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="p-3 bg-blue-600 rounded-lg">
+              <LogIn className="w-6 h-6 text-white" />
             </div>
-          )}
-          
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">Instance</label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-blue-400 transition-colors">
-                <Server size={18} />
-              </div>
-              <select
-                value={instance}
-                onChange={(e) => setInstance(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600/50 focus:border-blue-500 transition-all appearance-none"
-              >
-                <option value="Test">Test</option>
-                <option value="Dev">Dev</option>
-                <option value="Prod">Prod</option>
-              </select>
+            <div>
+              <h2 className="text-xl font-bold text-white">Keystone Login</h2>
+              <p className="text-slate-400 text-sm">Enter your credentials to connect</p>
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">Username</label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-blue-400 transition-colors">
-                <User size={18} />
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Instance</label>
+              <div className="relative">
+                <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <select
+                  value={instance}
+                  onChange={(e) => setInstance(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-md py-2 pl-10 pr-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                >
+                  <option value="Test">Test</option>
+                  <option value="Prod">Prod</option>
+                  <option value="Dev">Dev</option>
+                </select>
               </div>
-              <input
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter username"
-                className="block w-full pl-10 pr-3 py-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-600/50 focus:border-blue-500 transition-all"
-              />
             </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">Password</label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-blue-400 transition-colors">
-                <Lock size={18} />
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Username</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter username"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-md py-2 pl-10 pr-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
               </div>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="block w-full pl-10 pr-3 py-2.5 bg-gray-950 border border-gray-800 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-600/50 focus:border-blue-500 transition-all"
-              />
             </div>
-          </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all shadow-lg shadow-blue-900/20 mt-6 flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <LogIn size={18} />
-                <span>Connect</span>
-              </>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-md py-2 pl-10 pr-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="flex items-start space-x-2 p-3 bg-red-900/30 border border-red-500/50 rounded-md text-red-400 text-sm">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
             )}
-          </button>
-        </form>
-        
-        <div className="bg-gray-950/50 px-6 py-4 border-t border-gray-800 text-center">
-          <p className="text-xs text-gray-600">
-            Secure connection via Keystone Proxy
-          </p>
+
+            <div className="flex space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-4 py-2 border border-slate-600 rounded-md text-slate-300 hover:bg-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:text-slate-400 rounded-md text-white font-medium transition-colors flex items-center justify-center space-x-2"
+              >
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>Login</span>
+                    <LogIn className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
+
+export default LoginDialog;

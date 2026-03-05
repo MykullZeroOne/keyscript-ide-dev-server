@@ -1,10 +1,15 @@
-import './assets/main.css'
-
 import React from 'react'
-import ReactDOM from 'react-dom/client'
+import { createRoot } from 'react-dom/client'
 import App from './App'
+import './index.css'
+import { registerAllFeatures } from './features/registry'
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+// Register features before rendering
+registerAllFeatures();
+
+const container = document.getElementById('root')
+const root = createRoot(container!)
+root.render(
   <React.StrictMode>
     <App />
   </React.StrictMode>

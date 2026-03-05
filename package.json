@@ -5,21 +5,20 @@
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "preview": "electron-vite preview",
-    "package": "electron-vite build && electron-builder",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
+    "build": "electron-vite build",
+    "dev": "electron-vite dev",
+    "preview": "electron-vite preview",
+    "package": "electron-vite build && electron-builder",
+    "start": "electron-vite dev",
     "server": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 node ./server/main.js"
   },
   "keywords": [],
   "author": "",
   "license": "See license.md",
   "dependencies": {
-    "@electron-toolkit/preload": "^3.0.2",
-    "@electron-toolkit/utils": "^4.0.0",
     "@monaco-editor/react": "^4.7.0",
     "@tailwindcss/vite": "^4.2.1",
     "allotment": "^1.20.5",
@@ -43,6 +42,8 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.2",
+    "@electron-toolkit/utils": "^4.0.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@types/body-parser": "^1.19.6",
     "@types/cors": "^2.8.19",

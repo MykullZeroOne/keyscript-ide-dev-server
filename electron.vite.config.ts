@@ -1,7 +1,6 @@
-import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
+import { resolve } from 'path'
 
 export default defineConfig({
   main: {
@@ -11,16 +10,11 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   renderer: {
-    base: '/ide/',
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer'),
-        '@features': resolve('src/renderer/features'),
-        '@shell': resolve('src/renderer/shell'),
-        '@components': resolve('src/renderer/components'),
-        '@assets': resolve('src/renderer/assets')
+        '@renderer': resolve('src/renderer')
       }
     },
-    plugins: [react(), tailwindcss()]
+    plugins: [react()]
   }
 })
