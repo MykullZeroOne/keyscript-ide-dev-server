@@ -36,7 +36,8 @@ Do not make assumptions on important decisions — get clarification first.
 - Build the main shell layout with `allotment` (Activity Bar, Sidebar, Editor, Bottom Panel, Status Bar)
 - Set up `FeatureContext` for plugins to interact with the shell
 
-### [ ] Step: Feature: Authentication (Login)
+### [x] Step: Feature: Authentication (Login)
+<!-- chat-id: 3d407b17-182f-426a-810a-2af6bf382085 -->
 - Create login UI (Dialog)
 - Implement `StatusBarItem` for auth status
 - Wire up with proxied `/UserLogin` endpoint
