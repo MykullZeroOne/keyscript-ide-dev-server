@@ -60,13 +60,14 @@ Do not make assumptions on important decisions — get clarification first.
 - Inject parameters and `keyscript-all.js` into the webview
 - Add "Run" button to the toolbar
 
-### [ ] Step: Features: Developer Tools (Console, Inspector, Terminal)
+### [x] Step: Features: Developer Tools (Console, Inspector, Terminal)
 <!-- chat-id: b96e7613-df17-4709-8c50-3c0c37a9cd32 -->
 - Console: Capture `console.log` from the webview and display in a bottom tab
 - Inspector: Log proxied network requests in a bottom tab
 - Terminal: Integrate `node-pty` + `xterm.js` for an integrated shell
 
 ### [ ] Step: Final Integration & Testing
+<!-- chat-id: 6603b866-7b39-4945-84af-a51203c4fd80 -->
 - Test login persistence
 - Verify script execution with complex ExtJS components
 - Ensure search (Person/Account) works correctly through the proxy
