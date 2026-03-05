@@ -13,7 +13,7 @@ The IDE acts as a proxy to the Keystone core banking server.
 | `/LoginUserInterface` | POST | JSON | Fetches UI metadata/session info after login |
 | `/TableListJSON` | POST | JSON | Lists available tables |
 | `/TableBrowser` | POST | JSON | Browser for table records |
-| `/SearchJSON` | POST | JSON | Search functionality |
+| `/SearchJSON` | POST | JSON | Search functionality for Person, Account, etc. |
 | `/RetrieveBinary` | GET | Binary | Retrieves files/assets |
 | `/SessionStore` | POST | Form | Temporary storage for passing script parameters |
 
@@ -21,9 +21,10 @@ The IDE acts as a proxy to the Keystone core banking server.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/KeyscriptServlet/List` | POST | Lists local scripts from `./public/scripts/` |
+| `/KeyscriptServlet/List` | POST | Lists local scripts from `./public/scripts/` (reads local FS) |
 | `/GetDeviceInformation` | GET | Returns device info (MAC addresses) for license verification (Mocked on port 51764) |
 | `/RunScript` | GET | Serves the `iframe-target.html` with injected parameters |
+| `/JSCSSLoader` | GET | Serves loader script that includes ExtJS and `ide-all.js`/`keyscript-all.js` |
 
 ---
 
@@ -45,15 +46,17 @@ The IDE acts as a proxy to the Keystone core banking server.
 ## 3. Script Execution Flow
 
 1. **Parameter Storing**:
-   - IDE calls `/SessionStore` (proxied) to save `crlogin` and `crscript` objects.
-   - Proxy intercepts the response to map the session ID to the parameters.
+   - IDE collects parameters from `Script Options` (south-west panel).
+   - It constructs a `crlogin` and `crscript` object.
+   - It calls `/SessionStore` (proxied) to save these objects.
+   - Proxy intercepts the response to map the session ID to the parameters in its local `ideParamsData` cache.
 2. **Execution Shell**:
-   - IDE navigates the preview `<webview>` (or iframe) to `/RunScript?scriptPath=...&scriptParametersId=...`.
+   - IDE navigates the preview area to `/RunScript?scriptPath=...&scriptParametersId=...`.
 3. **Runtime Injection**:
    - The server renders `iframe-target.html`.
    - It injects `head-section.html` (ExtJS 3.2.2 + `keyscript-all.js`).
    - It injects the `scriptParameters` retrieved from the local cache.
-   - The script initializes `CR.Login` and `CR.Script` before dynamically loading the `.js` file.
+   - The script initializes `CR.Login` and `CR.Script` before dynamically loading the `.js` file from `/scripts/`.
 
 ---
 
@@ -63,36 +66,42 @@ The IDE acts as a proxy to the Keystone core banking server.
 |--------------------|---------|---------------|
 | `CR.Login` | Auth & Session | `login` |
 | `CR.DevelopmentScriptsPanel` | File Explorer | `script-explorer` |
-| IDE Fields (Serial, etc) | Script Params | `script-options` |
+| `Run Parameters` FieldSet | Script Params | `script-options` |
 | `CR.ScriptManager` | Execution Engine | `script-runner` |
 | `CR.Core.ajaxRequest` | Network Handler | `inspector` (passive) |
-| Ext.Window / Viewport | UI Layout | `shell` (base) |
-| CodeMirror (in `ide-all`) | Editor | `editor` (Monaco) |
-| Console output | Logging | `console` |
+| `Ext.Window` / `Viewport` | UI Layout | `shell` (base) |
+| `CodeMirror` (in `ide-all`) | Editor | `editor` (Monaco) |
+| `console.log` capture | Logging | `console` |
 | Network requests | Debugging | `inspector` |
+
+---
 
 ## 5. Plugin Architecture Design
 
 ### Feature Interface
-Each plugin MUST implement the following interface:
+Each plugin MUST implement the following interface (see `src/renderer/features/types.ts`):
 
 ```typescript
+interface SidebarPanel {
+  id: string;
+  icon: LucideIcon;
+  label: string;
+  component: React.ComponentType;
+}
+
+interface BottomTab {
+  id: string;
+  label: string;
+  component: React.ComponentType;
+}
+
 interface FeatureDefinition {
   id: string;
   name: string;
   requires?: string[];
-  initialize?: (ctx: FeatureContext) => Promise<void>;
-  sidebarPanels?: Array<{
-    id: string;
-    icon: string;
-    label: string;
-    component: React.ComponentType;
-  }>;
-  bottomTabs?: Array<{
-    id: string;
-    label: string;
-    component: React.ComponentType;
-  }>;
+  initialize?: () => Promise<void>;
+  sidebarPanels?: SidebarPanel[];
+  bottomTabs?: BottomTab[];
   toolbarItems?: Array<{
     id: string;
     component: React.ComponentType;
@@ -106,18 +115,15 @@ interface FeatureDefinition {
 ```
 
 ### Plugin Registry
-A central store (Zustand) will manage the registry:
+A central store (Zustand) manages the registry. Plugins self-register on import.
 
-1. `features`: Array of registered `FeatureDefinition`
-2. `registerFeature(feature: FeatureDefinition)`: Adds plugin to store
-3. `layout`: The shell reads this store to render the UI dynamically.
-
-### Core Plugins & Registration
+### Target Plugins
 
 - **login**: Registers `StatusBarItem` (Auth status) and `Dialog` (Login form).
 - **script-explorer**: Registers `SidebarPanel` (File tree) using `/KeyscriptServlet/List`.
-- **script-options**: Registers `SidebarPanel` (Forms for `personSerial`, `accountSerial`, etc).
+- **script-options**: Registers `SidebarPanel` (Form fields for `PERSON_SERIAL`, `ACCOUNT_SERIAL`, etc.).
 - **script-runner**: Registers `ToolbarItem` (Run button) and Main area view (webview renderer).
 - **editor**: Registers Main area view (Monaco editor instance).
-- **console**: Registers `BottomTab` (Captures messages from webview via IPC).
+- **console**: Registers `BottomTab` (Captures messages from webview).
 - **inspector**: Registers `BottomTab` (Logs proxied requests/responses).
+- **terminal**: Registers `BottomTab` (Xterm.js instance).
