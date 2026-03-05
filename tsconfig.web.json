@@ -1,0 +1,17 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
+  "include": ["src/renderer/**/*"],
+  "compilerOptions": {
+    "composite": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": ["src/renderer/*"],
+      "@features/*": ["src/renderer/features/*"],
+      "@shell/*": ["src/renderer/shell/*"],
+      "@components/*": ["src/renderer/components/*"],
+      "@assets/*": ["src/renderer/assets/*"]
+    },
+    "types": ["node", "vite/client"]
+  }
+}

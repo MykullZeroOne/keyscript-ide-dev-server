@@ -1,1 +1,7 @@
 **/scripts/**/*
+out/
+node_modules/
+dist/
+public/
+server/
+run-proxy.ts
