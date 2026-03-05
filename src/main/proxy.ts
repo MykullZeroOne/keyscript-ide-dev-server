@@ -91,7 +91,7 @@ export function setupProxy(
   });
 
   app.post('*', proxy(proxyEndpoint, {
-    https: true,
+    https: proxyEndpoint.startsWith('https'),
     proxyReqPathResolver: function (req) {
       if (req.path.startsWith('/Keyscript_IDE/'))
         return req.url.replace(/^\/Keyscript_IDE/, `/${KSInstance}`);
