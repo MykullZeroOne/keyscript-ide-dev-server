@@ -54,6 +54,7 @@ Do not make assumptions on important decisions — get clarification first.
 - Implement Save functionality via IPC
 
 ### [ ] Step: Feature: Script Runner (Webview)
+<!-- chat-id: 88897bb5-d861-4fd8-b834-d3b19dcdfb12 -->
 - Implement Main workspace view with `<webview>`
 - Build the server-side runtime shell (`RunScript` route)
 - Inject parameters and `keyscript-all.js` into the webview
