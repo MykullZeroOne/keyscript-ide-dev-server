@@ -6,7 +6,19 @@ import * as esbuild from 'esbuild'
 import { existsSync } from 'fs'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import path from 'path'
-import { app } from 'electron'
+
+// Resolve IDE root — works in both Electron (app.getAppPath()) and Docker (ROOT_PATH env)
+function getIdeRoot(): string {
+  if (process.env.ROOT_PATH) return process.env.ROOT_PATH
+  try {
+    // Electron context
+    const { app } = require('electron')
+    return app.getAppPath()
+  } catch {
+    // Standalone server — use cwd
+    return process.cwd()
+  }
+}
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -99,7 +111,7 @@ export async function bundleProject(projectPath: string, configOverrides?: Parti
   }
 
   // Use IDE's node_modules as fallback resolve path so users don't need to install React etc
-  const ideRoot = app.getAppPath()
+  const ideRoot = getIdeRoot()
   const ideNodeModules = path.join(ideRoot, 'node_modules')
   const nodePaths = [ideNodeModules]
 
@@ -227,7 +239,7 @@ export async function startDevServer(projectPath: string, configOverrides?: Part
   // Write index.html for dev server
   await writeFile(path.join(serveDir, 'index.html'), DEV_HTML, 'utf-8')
 
-  const ideRoot = app.getAppPath()
+  const ideRoot = getIdeRoot()
   const ideNodeModules = path.join(ideRoot, 'node_modules')
   const nodePaths = [ideNodeModules]
   const projectNodeModules = path.join(projectPath, 'node_modules')

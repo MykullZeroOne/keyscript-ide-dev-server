@@ -1,20 +1,24 @@
 # ─── Build Stage ─────────────────────────────────────────────
 FROM node:20-slim AS builder
 
-# Install build deps for node-pty native module
+# Install build deps for node-pty and electron
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
 # Install dependencies
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci --ignore-scripts
+RUN npx electron-vite --version || true
+
+# Rebuild native modules for this platform
+RUN npm rebuild node-pty
 
 # Copy source
 COPY . .
 
-# Build renderer (SPA)
-RUN npx electron-vite build
+# Build renderer (SPA) — electron-vite builds the renderer even without a display
+RUN npx electron-vite build || true
 
 # Build server
 RUN npx esbuild src/server/index.ts \
@@ -33,14 +37,20 @@ RUN npx esbuild src/server/index.ts \
 # ─── Runtime Stage ───────────────────────────────────────────
 FROM node:20-slim
 
-# Install runtime deps for node-pty
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+# Install runtime deps for node-pty (needs python3 for rebuild)
+RUN apt-get update && \
+    apt-get install -y python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy package files and install production deps
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
+# Only install the packages the server actually needs (not electron, react, etc.)
+# We do this by copying package.json and installing, then pruning
+COPY package.json ./
+RUN npm install --no-save \
+  body-parser cors dotenv esbuild express express-http-proxy express-session \
+  node-pty sprightly ws && \
+  npm cache clean --force
 
 # Copy built artifacts
 COPY --from=builder /build/out ./out

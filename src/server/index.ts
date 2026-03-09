@@ -1,11 +1,17 @@
 /**
  * Standalone server for web/Docker deployment.
  * Replaces Electron main process — serves SPA + REST API + Keystone proxy + WebSocket terminal.
+ *
+ * Route order matters:
+ * 1. CORS
+ * 2. API routes (/api/*)
+ * 3. SPA static files (out/renderer/)
+ * 4. Keystone proxy (catch-all — must be LAST)
  */
 import express from 'express'
-import bodyParser from 'body-parser'
 import cors from 'cors'
 import { createServer } from 'http'
+import { existsSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
@@ -30,7 +36,7 @@ const server = createServer(app)
 
 app.use(cors({ origin: true, credentials: true }))
 
-// ─── API Config ──────────────────────────────────────────────
+// ─── 1. API routes ──────────────────────────────────────────
 
 app.get('/api/config', (_req, res) => {
   res.json({
@@ -42,36 +48,37 @@ app.get('/api/config', (_req, res) => {
   })
 })
 
-// ─── File Operations REST API ────────────────────────────────
-
 setupFileRoutes(app, WORKSPACE)
-
-// ─── Bundler REST API ────────────────────────────────────────
-
 setupBundleRoutes(app)
-
-// ─── WebSocket Terminal ──────────────────────────────────────
-
 setupTerminalWs(server, WORKSPACE)
 
-// ─── Keystone Proxy ──────────────────────────────────────────
-
-setupKeystoneProxy(app, ROOT_PATH, PORT, PROXY_ENDPOINT, SUPPORTED_INSTANCES)
-
-// ─── Serve SPA ───────────────────────────────────────────────
+// ─── 2. SPA static files ────────────────────────────────────
+// Must come BEFORE the Keystone catch-all proxy
 
 const rendererPath = path.join(ROOT_PATH, 'out/renderer')
-app.use(express.static(rendererPath))
 
-// SPA fallback — serve index.html for client-side routing
+// Serve renderer index.html at root
+app.get('/', (_req, res) => {
+  const indexFile = path.join(rendererPath, 'index.html')
+  if (existsSync(indexFile)) {
+    res.sendFile(indexFile)
+  } else {
+    res.redirect('/ide/index.html')
+  }
+})
+
+// Serve /ide/* as SPA
+app.use('/ide', express.static(rendererPath))
 app.get('/ide/*', (_req, res) => {
   res.sendFile(path.join(rendererPath, 'index.html'))
 })
 
-// Root redirect to IDE
-app.get('/', (_req, res) => {
-  res.redirect('/ide/index.html')
-})
+// Serve renderer assets at root level too (the built HTML references assets/*)
+app.use('/assets', express.static(path.join(rendererPath, 'assets')))
+
+// ─── 3. Keystone proxy (catch-all — LAST) ────────────────────
+
+setupKeystoneProxy(app, ROOT_PATH, PORT, PROXY_ENDPOINT, SUPPORTED_INSTANCES)
 
 // ─── Start ───────────────────────────────────────────────────
 
@@ -81,4 +88,5 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  Keystone:  ${PROXY_ENDPOINT}`)
   console.log(`  Instances: ${SUPPORTED_INSTANCES.join(', ')}`)
   console.log(`  SPA:       ${rendererPath}`)
+  console.log(`  Open:      http://localhost:${PORT}/`)
 })

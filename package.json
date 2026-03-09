@@ -13,7 +13,12 @@
     "preview": "electron-vite preview",
     "package": "electron-vite build && electron-builder",
     "start": "electron-vite dev",
-    "server": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 node ./server/main.js"
+    "server": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 node ./server/main.js",
+    "build:server": "npx esbuild src/server/index.ts --bundle --platform=node --format=esm --outdir=out/server --external:esbuild --external:node-pty --external:express-http-proxy --external:sprightly --external:ws --packages=external --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
+    "build:web": "electron-vite build && npm run build:server",
+    "start:web": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 ROOT_PATH=. node out/server/index.js",
+    "docker:build": "docker build -t keyscript-ide .",
+    "docker:run": "docker run -p 3000:3000 -v ./workspace:/workspace keyscript-ide"
   },
   "keywords": [],
   "author": "",

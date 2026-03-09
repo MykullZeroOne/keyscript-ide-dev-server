@@ -3,7 +3,7 @@
  * Adapted from src/main/proxy.ts — handles forwarding to Keystone with
  * JSESSIONID injection and device ID passthrough.
  */
-import { Express, Request } from 'express'
+import express, { Express, Request } from 'express'
 import proxy from 'express-http-proxy'
 import bodyParser from 'body-parser'
 import { request as httpsRequest } from 'https'
