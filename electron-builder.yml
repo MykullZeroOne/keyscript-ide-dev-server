@@ -26,10 +26,10 @@ mac:
   category: public.app-category.developer-tools
   target:
     - target: dmg
-      arch: [universal]
+      arch: [arm64, x64]
     - target: zip
-      arch: [universal]
-  artifactName: "${productName}-${version}-mac.${ext}"
+      arch: [arm64, x64]
+  artifactName: "${productName}-${version}-mac-${arch}.${ext}"
 
 win:
   target:
