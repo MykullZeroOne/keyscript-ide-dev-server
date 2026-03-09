@@ -10,16 +10,11 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Mount the host user's home directory so the IDE can browse local files
-      # Windows: C:\Users\YourName → /host-home inside the container
-      # Mac/Linux: /Users/you or /home/you → /host-home
-      - ${HOME:-${USERPROFILE:-~}}:/host-home:rw
-      - ./workspace:/workspace:rw
+      # Named volume persists workspace data across container restarts
+      - workspace-data:/workspace:rw
     environment:
       - PORT=3000
       - WORKSPACE_PATH=/workspace
-      # Tell the server where the host home directory is mounted
-      - HOST_HOME=/host-home
       - PROXY_ENDPOINT=keystonedev.revfcu.com:8443
       - SUPPORTED_INSTANCES=Development|Test|CARDS
       - NODE_TLS_REJECT_UNAUTHORIZED=0
@@ -30,3 +25,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  workspace-data:

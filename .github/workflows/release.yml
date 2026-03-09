@@ -173,44 +173,15 @@ jobs:
             **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
 
             ```bash
-            # Pull the latest image
+            # Pull and run (works on any OS)
             docker pull msmith624/keyscript-ide:${{ steps.version.outputs.version }}
-
-            # Run it — mounts your home directory so you can browse local files
-            docker run -p 3000:3000 \
-              -v "$HOME:/host-home" \
-              -e HOST_HOME=/host-home \
-              msmith624/keyscript-ide:${{ steps.version.outputs.version }}
+            docker run -p 3000:3000 msmith624/keyscript-ide:${{ steps.version.outputs.version }}
             ```
 
             Then open **http://localhost:3000** in Chrome or Edge.
 
-            <details>
-            <summary><b>Windows (PowerShell)</b></summary>
-
-            ```powershell
-            docker pull msmith624/keyscript-ide
-            docker run -p 3000:3000 -v "${env:USERPROFILE}:/host-home" -e HOST_HOME=/host-home msmith624/keyscript-ide
-            ```
-            </details>
-
-            <details>
-            <summary><b>Windows (Command Prompt)</b></summary>
-
-            ```cmd
-            docker pull msmith624/keyscript-ide
-            docker run -p 3000:3000 -v "%USERPROFILE%:/host-home" -e HOST_HOME=/host-home msmith624/keyscript-ide
-            ```
-            </details>
-
-            <details>
-            <summary><b>Mac/Linux</b></summary>
-
-            ```bash
-            docker pull msmith624/keyscript-ide
-            docker run -p 3000:3000 -v "$HOME:/host-home" -e HOST_HOME=/host-home msmith624/keyscript-ide
-            ```
-            </details>
+            Click **Open Folder** to grant the browser access to a local directory on your computer.
+            Files are read and saved directly — no volume mounts or uploads needed.
 
             **Updating:** Just `docker pull msmith624/keyscript-ide:latest` and restart the container.
 
@@ -235,7 +206,6 @@ jobs:
             | `PROXY_ENDPOINT` | `keystonedev.revfcu.com:8443` | Keystone server |
             | `SUPPORTED_INSTANCES` | `Development\|Test\|CARDS` | Available instances |
             | `WORKSPACE_PATH` | `/workspace` | Default workspace path |
-            | `HOST_HOME` | (container home) | Mount point for host home directory |
 
             ---
 

@@ -7,9 +7,95 @@ import { readFile, writeFile, readdir, mkdir, rm, rename } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
 import bodyParser from 'body-parser'
+import multer from 'multer'
+import archiver from 'archiver'
 
 export function setupFileRoutes(app: Express, workspace: string): void {
   const json = bodyParser.json()
+
+  // Multer stores uploads in workspace, preserving relative paths
+  const upload = multer({
+    storage: multer.diskStorage({
+      destination: async (req, _file, cb) => {
+        const targetDir = (req.body?.targetDir) || workspace
+        const resolved = path.isAbsolute(targetDir) ? targetDir : path.join(workspace, targetDir)
+        if (!existsSync(resolved)) await mkdir(resolved, { recursive: true })
+        cb(null, resolved)
+      },
+      filename: (_req, file, cb) => {
+        // Preserve original filename
+        cb(null, file.originalname)
+      }
+    })
+  })
+
+  // Upload files — accepts multiple files, preserves folder structure via webkitRelativePath
+  app.post('/api/files/upload', upload.array('files', 500), async (req, res) => {
+    try {
+      // If relativePaths are provided (folder upload), move files to correct subdirectories
+      const relativePaths = req.body?.relativePaths
+      if (relativePaths && req.files) {
+        const paths = Array.isArray(relativePaths) ? relativePaths : [relativePaths]
+        const files = req.files as Express.Multer.File[]
+        const targetDir = req.body?.targetDir || workspace
+
+        for (let i = 0; i < files.length; i++) {
+          const relPath = paths[i]
+          if (!relPath || relPath === files[i].originalname) continue
+
+          const destPath = path.join(
+            path.isAbsolute(targetDir) ? targetDir : path.join(workspace, targetDir),
+            relPath
+          )
+          const destDir = path.dirname(destPath)
+          if (!existsSync(destDir)) await mkdir(destDir, { recursive: true })
+
+          // Move from flat upload location to correct subfolder
+          const currentPath = files[i].path
+          if (currentPath !== destPath) {
+            await rename(currentPath, destPath)
+          }
+        }
+      }
+
+      const count = (req.files as Express.Multer.File[])?.length || 0
+      res.json({ success: true, count })
+    } catch (e: any) {
+      res.json({ success: false, error: e.message })
+    }
+  })
+
+  // Download a single file
+  app.get('/api/files/download', async (req, res) => {
+    try {
+      const filePath = req.query.path as string
+      if (!filePath) return res.status(400).json({ error: 'path required' })
+      const resolved = path.isAbsolute(filePath) ? filePath : path.join(workspace, filePath)
+      if (!existsSync(resolved)) return res.status(404).json({ error: 'Not found' })
+      res.download(resolved)
+    } catch (e: any) {
+      res.status(500).json({ error: e.message })
+    }
+  })
+
+  // Download a folder as zip
+  app.get('/api/files/download-zip', async (req, res) => {
+    try {
+      const dirPath = req.query.path as string
+      if (!dirPath) return res.status(400).json({ error: 'path required' })
+      const resolved = path.isAbsolute(dirPath) ? dirPath : path.join(workspace, dirPath)
+      if (!existsSync(resolved)) return res.status(404).json({ error: 'Not found' })
+      const folderName = path.basename(resolved)
+      res.setHeader('Content-Type', 'application/zip')
+      res.setHeader('Content-Disposition', `attachment; filename="${folderName}.zip"`)
+      const archive = archiver('zip', { zlib: { level: 6 } })
+      archive.pipe(res)
+      archive.directory(resolved, folderName)
+      await archive.finalize()
+    } catch (e: any) {
+      res.status(500).json({ error: e.message })
+    }
+  })
 
   const resolve = (filePath: string): string => {
     if (path.isAbsolute(filePath)) return filePath
