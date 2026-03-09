@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   keyscript-ide:
-    image: mykullzeroone/keyscript-ide:latest
+    image: msmith624/keyscript-ide:latest
     build:
       context: .
       args:

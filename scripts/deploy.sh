@@ -14,7 +14,7 @@
 set -e
 
 VERSION="${1:-$(node -p "require('./package.json').version")}"
-DOCKERHUB_IMAGE="mykullzeroone/keyscript-ide"
+DOCKERHUB_IMAGE="msmith624/keyscript-ide"
 LOCAL_IMAGE="keyscript-ide"
 
 echo "═══════════════════════════════════════════════"

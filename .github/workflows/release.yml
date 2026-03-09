@@ -16,7 +16,7 @@ permissions:
   packages: write
 
 env:
-  DOCKER_IMAGE: mykullzeroone/keyscript-ide
+  DOCKER_IMAGE: msmith624/keyscript-ide
 
 jobs:
   # ─── Docker Image ─────────────────────────────────────────
@@ -174,10 +174,10 @@ jobs:
 
             ```bash
             # Pull the latest image
-            docker pull mykullzeroone/keyscript-ide:${{ steps.version.outputs.version }}
+            docker pull msmith624/keyscript-ide:${{ steps.version.outputs.version }}
 
             # Run it (replace /path/to/scripts with your local scripts folder)
-            docker run -p 3000:3000 -v /path/to/scripts:/workspace mykullzeroone/keyscript-ide:${{ steps.version.outputs.version }}
+            docker run -p 3000:3000 -v /path/to/scripts:/workspace msmith624/keyscript-ide:${{ steps.version.outputs.version }}
             ```
 
             Then open **http://localhost:3000** in Chrome or Edge.
@@ -186,8 +186,8 @@ jobs:
             <summary><b>Windows example</b></summary>
 
             ```powershell
-            docker pull mykullzeroone/keyscript-ide
-            docker run -p 3000:3000 -v C:\Users\%USERNAME%\scripts:/workspace mykullzeroone/keyscript-ide
+            docker pull msmith624/keyscript-ide
+            docker run -p 3000:3000 -v C:\Users\%USERNAME%\scripts:/workspace msmith624/keyscript-ide
             ```
             </details>
 
@@ -195,12 +195,12 @@ jobs:
             <summary><b>Mac/Linux example</b></summary>
 
             ```bash
-            docker pull mykullzeroone/keyscript-ide
-            docker run -p 3000:3000 -v ~/scripts:/workspace mykullzeroone/keyscript-ide
+            docker pull msmith624/keyscript-ide
+            docker run -p 3000:3000 -v ~/scripts:/workspace msmith624/keyscript-ide
             ```
             </details>
 
-            **Updating:** Just `docker pull mykullzeroone/keyscript-ide:latest` and restart the container.
+            **Updating:** Just `docker pull msmith624/keyscript-ide:latest` and restart the container.
 
             ---
 
