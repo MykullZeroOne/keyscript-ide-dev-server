@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  keyscript-ide:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount your local scripts/projects as the workspace
+      - ./workspace:/workspace
+    environment:
+      - PORT=3000
+      - WORKSPACE_PATH=/workspace
+      - PROXY_ENDPOINT=keystonedev.revfcu.com:8443
+      - SUPPORTED_INSTANCES=Development|Test|CARDS
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+    restart: unless-stopped
