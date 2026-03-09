@@ -176,27 +176,39 @@ jobs:
             # Pull the latest image
             docker pull msmith624/keyscript-ide:${{ steps.version.outputs.version }}
 
-            # Run it (replace /path/to/scripts with your local scripts folder)
-            docker run -p 3000:3000 -v /path/to/scripts:/workspace msmith624/keyscript-ide:${{ steps.version.outputs.version }}
+            # Run it — mounts your home directory so you can browse local files
+            docker run -p 3000:3000 \
+              -v "$HOME:/host-home" \
+              -e HOST_HOME=/host-home \
+              msmith624/keyscript-ide:${{ steps.version.outputs.version }}
             ```
 
             Then open **http://localhost:3000** in Chrome or Edge.
 
             <details>
-            <summary><b>Windows example</b></summary>
+            <summary><b>Windows (PowerShell)</b></summary>
 
             ```powershell
             docker pull msmith624/keyscript-ide
-            docker run -p 3000:3000 -v C:\Users\%USERNAME%\scripts:/workspace msmith624/keyscript-ide
+            docker run -p 3000:3000 -v "${env:USERPROFILE}:/host-home" -e HOST_HOME=/host-home msmith624/keyscript-ide
             ```
             </details>
 
             <details>
-            <summary><b>Mac/Linux example</b></summary>
+            <summary><b>Windows (Command Prompt)</b></summary>
+
+            ```cmd
+            docker pull msmith624/keyscript-ide
+            docker run -p 3000:3000 -v "%USERPROFILE%:/host-home" -e HOST_HOME=/host-home msmith624/keyscript-ide
+            ```
+            </details>
+
+            <details>
+            <summary><b>Mac/Linux</b></summary>
 
             ```bash
             docker pull msmith624/keyscript-ide
-            docker run -p 3000:3000 -v ~/scripts:/workspace msmith624/keyscript-ide
+            docker run -p 3000:3000 -v "$HOME:/host-home" -e HOST_HOME=/host-home msmith624/keyscript-ide
             ```
             </details>
 
@@ -223,6 +235,7 @@ jobs:
             | `PROXY_ENDPOINT` | `keystonedev.revfcu.com:8443` | Keystone server |
             | `SUPPORTED_INSTANCES` | `Development\|Test\|CARDS` | Available instances |
             | `WORKSPACE_PATH` | `/workspace` | Default workspace path |
+            | `HOST_HOME` | (container home) | Mount point for host home directory |
 
             ---
 

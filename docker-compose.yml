@@ -10,13 +10,16 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Mount host filesystem for file browsing
-      # On a shared server, mount each user's home or a shared dev directory
-      - /home:/home:rw
-      - /workspace:/workspace:rw
+      # Mount the host user's home directory so the IDE can browse local files
+      # Windows: C:\Users\YourName → /host-home inside the container
+      # Mac/Linux: /Users/you or /home/you → /host-home
+      - ${HOME:-${USERPROFILE:-~}}:/host-home:rw
+      - ./workspace:/workspace:rw
     environment:
       - PORT=3000
       - WORKSPACE_PATH=/workspace
+      # Tell the server where the host home directory is mounted
+      - HOST_HOME=/host-home
       - PROXY_ENDPOINT=keystonedev.revfcu.com:8443
       - SUPPORTED_INSTANCES=Development|Test|CARDS
       - NODE_TLS_REJECT_UNAUTHORIZED=0

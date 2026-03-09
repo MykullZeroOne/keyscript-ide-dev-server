@@ -57,13 +57,17 @@ app.get('/api/version', (_req, res) => {
 })
 
 // Home directory and quick-access bookmarks for folder picker
+// HOST_HOME lets Docker containers point to the mounted host filesystem
+const HOST_HOME = process.env.HOST_HOME || os.homedir()
+
 app.get('/api/files/home', (_req, res) => {
-  const home = os.homedir()
+  const home = HOST_HOME
   const bookmarks = [
     { name: 'Home', path: home },
     { name: 'Desktop', path: path.join(home, 'Desktop') },
     { name: 'Documents', path: path.join(home, 'Documents') },
     { name: 'Development', path: path.join(home, 'Documents', 'Development') },
+    { name: 'Workspace', path: WORKSPACE },
   ].filter(b => existsSync(b.path))
   res.json({ home, bookmarks })
 })
