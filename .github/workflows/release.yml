@@ -1,0 +1,230 @@
+name: Release — Build & Publish
+
+# Trigger on version tags: v1.0.0, v1.2.3, etc.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 1.2.0)'
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  DOCKER_IMAGE: mykullzeroone/keyscript-ide
+
+jobs:
+  # ─── Docker Image ─────────────────────────────────────────
+  docker:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+            echo "tag=v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          build-args: APP_VERSION=${{ steps.version.outputs.version }}
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:${{ steps.version.outputs.version }}
+            ${{ env.DOCKER_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── Electron — macOS ─────────────────────────────────────
+  electron-mac:
+    name: Electron — macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & Package
+        run: npm run package:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyscript-ide-mac
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: warn
+
+  # ─── Electron — Windows ──────────────────────────────────
+  electron-win:
+    name: Electron — Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & Package
+        run: npm run package:win
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyscript-ide-win
+          path: dist/*.exe
+          if-no-files-found: warn
+
+  # ─── Electron — Linux ────────────────────────────────────
+  electron-linux:
+    name: Electron — Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & Package
+        run: npm run package:linux
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyscript-ide-linux
+          path: dist/*.AppImage
+          if-no-files-found: warn
+
+  # ─── GitHub Release ──────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [docker, electron-mac, electron-win, electron-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Set version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Keyscript IDE v${{ steps.version.outputs.version }}
+          draft: false
+          generate_release_notes: true
+          files: release-artifacts/**/*
+          body: |
+            ## Keyscript IDE v${{ steps.version.outputs.version }}
+
+            ---
+
+            ### Quick Start — Docker (recommended, all platforms)
+
+            **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+
+            ```bash
+            # Pull the latest image
+            docker pull mykullzeroone/keyscript-ide:${{ steps.version.outputs.version }}
+
+            # Run it (replace /path/to/scripts with your local scripts folder)
+            docker run -p 3000:3000 -v /path/to/scripts:/workspace mykullzeroone/keyscript-ide:${{ steps.version.outputs.version }}
+            ```
+
+            Then open **http://localhost:3000** in Chrome or Edge.
+
+            <details>
+            <summary><b>Windows example</b></summary>
+
+            ```powershell
+            docker pull mykullzeroone/keyscript-ide
+            docker run -p 3000:3000 -v C:\Users\%USERNAME%\scripts:/workspace mykullzeroone/keyscript-ide
+            ```
+            </details>
+
+            <details>
+            <summary><b>Mac/Linux example</b></summary>
+
+            ```bash
+            docker pull mykullzeroone/keyscript-ide
+            docker run -p 3000:3000 -v ~/scripts:/workspace mykullzeroone/keyscript-ide
+            ```
+            </details>
+
+            **Updating:** Just `docker pull mykullzeroone/keyscript-ide:latest` and restart the container.
+
+            ---
+
+            ### Quick Start — Desktop App (no Docker needed)
+
+            1. Download the installer for your OS from the **Assets** below
+               - **macOS:** `.dmg` file
+               - **Windows:** `.exe` installer
+               - **Linux:** `.AppImage` file
+            2. Install and launch
+            3. Configure your `.env` file with your Keystone endpoint
+
+            ---
+
+            ### Environment Variables
+
+            | Variable | Default | Description |
+            |----------|---------|-------------|
+            | `PORT` | `3000` | Server port |
+            | `PROXY_ENDPOINT` | `keystonedev.revfcu.com:8443` | Keystone server |
+            | `SUPPORTED_INSTANCES` | `Development\|Test\|CARDS` | Available instances |
+            | `WORKSPACE_PATH` | `/workspace` | Default workspace path |
+
+            ---
+
+            ### What's New
+            See commit history below for changes in this release.

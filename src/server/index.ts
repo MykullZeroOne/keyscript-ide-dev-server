@@ -14,6 +14,7 @@ import { createServer } from 'http'
 import { existsSync } from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import os from 'os'
 import dotenv from 'dotenv'
 
 import { setupFileRoutes } from './fileRoutes'
@@ -38,14 +39,33 @@ app.use(cors({ origin: true, credentials: true }))
 
 // ─── 1. API routes ──────────────────────────────────────────
 
+const APP_VERSION = process.env.APP_VERSION || '1.1.0'
+
 app.get('/api/config', (_req, res) => {
   res.json({
     proxyEndpoint: PROXY_ENDPOINT,
     supportedInstances: SUPPORTED_INSTANCES,
     port: PORT,
     workspace: WORKSPACE,
-    mode: 'web'
+    mode: 'web',
+    version: APP_VERSION
   })
+})
+
+app.get('/api/version', (_req, res) => {
+  res.json({ version: APP_VERSION, mode: 'web' })
+})
+
+// Home directory and quick-access bookmarks for folder picker
+app.get('/api/files/home', (_req, res) => {
+  const home = os.homedir()
+  const bookmarks = [
+    { name: 'Home', path: home },
+    { name: 'Desktop', path: path.join(home, 'Desktop') },
+    { name: 'Documents', path: path.join(home, 'Documents') },
+    { name: 'Development', path: path.join(home, 'Documents', 'Development') },
+  ].filter(b => existsSync(b.path))
+  res.json({ home, bookmarks })
 })
 
 setupFileRoutes(app, WORKSPACE)

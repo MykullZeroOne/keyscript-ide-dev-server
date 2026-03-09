@@ -1,7 +1,9 @@
 # ─── Build Stage ─────────────────────────────────────────────
 FROM node:20-slim AS builder
 
-# Install build deps for node-pty and electron
+ARG APP_VERSION=1.1.0
+
+# Install build deps for node-pty
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -37,15 +39,18 @@ RUN npx esbuild src/server/index.ts \
 # ─── Runtime Stage ───────────────────────────────────────────
 FROM node:20-slim
 
-# Install runtime deps for node-pty (needs python3 for rebuild)
+ARG APP_VERSION=1.1.0
+LABEL org.opencontainers.image.title="Keyscript IDE"
+LABEL org.opencontainers.image.version="${APP_VERSION}"
+
+# Install runtime deps for node-pty
 RUN apt-get update && \
-    apt-get install -y python3 make g++ && \
+    apt-get install -y python3 make g++ curl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Only install the packages the server actually needs (not electron, react, etc.)
-# We do this by copying package.json and installing, then pruning
 COPY package.json ./
 RUN npm install --no-save \
   body-parser cors dotenv esbuild express express-http-proxy express-session \
@@ -67,7 +72,11 @@ ENV WORKSPACE_PATH=/workspace
 ENV PROXY_ENDPOINT=keystonedev.revfcu.com:8443
 ENV SUPPORTED_INSTANCES=Development|Test|CARDS
 ENV ROOT_PATH=/app
+ENV APP_VERSION=${APP_VERSION}
 
 EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3000/api/version || exit 1
 
 CMD ["node", "out/server/index.js"]

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useScriptOptionsStore } from '../script-options/ScriptOptionsStore'
-import { LogIn, Server, User, Lock, AlertCircle, Globe, Shield } from 'lucide-react'
+import { LogIn, Server, User, Lock, AlertCircle, Globe, Shield, Fingerprint } from 'lucide-react'
 
 interface LoginDialogProps {
   isOpen: boolean
@@ -18,6 +18,7 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
   const [proxyEndpoint, setProxyEndpoint] = useState('')
   const [supportedInstances, setSupportedInstances] = useState<string[]>([])
   const [showManualLogin, setShowManualLogin] = useState(false)
+  const [deviceId, setDeviceId] = useState(() => localStorage.getItem('keyscript-device-id') || '')
   const setLogin = useAuthStore((state) => state.setLogin)
 
   useEffect(() => {
@@ -53,14 +54,17 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
   }, [isOpen, instance])
 
   const getDeviceIdentifier = async (): Promise<string> => {
-    try {
-      const deviceRes = await fetch('/GetDeviceInformation')
-      const deviceXml = await deviceRes.text()
-      const match = deviceXml.match(/<identifier>(.*?)<\/identifier>/)
-      return match ? match[1] : ''
-    } catch {
-      return ''
+    // Use user-specified device ID — persist and send to server
+    const id = deviceId.trim()
+    if (id) {
+      localStorage.setItem('keyscript-device-id', id)
+      await fetch('/api/device-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId: id })
+      }).catch(() => {})
     }
+    return id
   }
 
   const attemptSso = async () => {
@@ -283,6 +287,23 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#858585] mb-1">
+                Device ID
+              </label>
+              <div className="relative">
+                <Fingerprint className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#858585]" />
+                <input
+                  type="text"
+                  value={deviceId}
+                  onChange={(e) => setDeviceId(e.target.value)}
+                  placeholder="e.g. MAC: AA-BB-CC-DD-EE-FF"
+                  className="w-full bg-[#1e1e1e] border border-[#414141] rounded pl-8 pr-3 py-2 text-xs text-white placeholder-[#6e6e6e] focus:outline-none focus:border-[#007acc]"
+                />
+              </div>
+              <p className="text-[9px] text-[#6e6e6e] mt-1">Your Keystone device identifier</p>
             </div>
 
             <div>

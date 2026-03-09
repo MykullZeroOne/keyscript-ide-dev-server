@@ -10,9 +10,18 @@ export interface EditorTab {
   paramsId?: string
 }
 
+interface SplitPreview {
+  path: string
+  paramsId?: string
+}
+
 interface EditorState {
   tabs: EditorTab[]
   activeTabId: string | null
+
+  // Split view
+  splitPreview: SplitPreview | null
+  previewVersion: number
 
   openFile: (path: string, name: string) => void
   closeTab: (id: string) => void
@@ -20,11 +29,18 @@ interface EditorState {
   updateContent: (id: string, content: string) => void
   runScript: (path: string, paramsId?: string) => void
   openPreview: (url: string, name: string) => void
+
+  // Split view actions
+  runScriptSplit: (path: string, paramsId?: string) => void
+  closeSplitPreview: () => void
+  reloadPreview: () => void
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   tabs: [],
   activeTabId: null,
+  splitPreview: null,
+  previewVersion: 0,
 
   openFile: (path, name) => {
     const { tabs } = get()
@@ -68,12 +84,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }))
   },
 
+  // Full-tab preview (legacy behavior)
   runScript: (path, paramsId) => {
     const { tabs } = get()
     const previewId = `preview-${path}`
     const name = `Preview: ${path.split('/').pop()}`
 
-    // Remove existing preview for this path (re-run replaces it)
     const filtered = tabs.filter((t) => t.id !== previewId)
     set({
       tabs: [
@@ -99,5 +115,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ],
       activeTabId: previewId
     })
+  },
+
+  // Split view — keep editor active, show preview on the right
+  runScriptSplit: (path, paramsId) => {
+    set({
+      splitPreview: { path, paramsId },
+      previewVersion: get().previewVersion + 1
+    })
+  },
+
+  closeSplitPreview: () => {
+    set({ splitPreview: null })
+  },
+
+  reloadPreview: () => {
+    set({ previewVersion: get().previewVersion + 1 })
   }
 }))

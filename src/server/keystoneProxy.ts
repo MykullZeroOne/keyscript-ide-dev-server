@@ -11,7 +11,6 @@ import { request as httpRequest } from 'http'
 import { readdir } from 'fs/promises'
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
-import { networkInterfaces } from 'os'
 import sprightlyExpress from 'sprightly/express'
 
 let KSInstance = ''
@@ -19,6 +18,7 @@ const ideParamsData: Record<string, string> = {}
 let ideParamsSeq = 0
 let activeProjectPath = ''
 let ssoSessionId = ''
+let lastScriptParams = ''
 
 const KeybridgeEndpoints = ['/DirectXMLPostJSON', '/UserLogin', '/LoginUserInterface', '/TableListJSON', '/TableBrowser', '/SearchJSON', '/SessionStore']
 
@@ -66,28 +66,12 @@ export function setupKeystoneProxy(
     res.json({ success: true })
   })
 
-  // Mock device info endpoint (fallback when no Go service)
+  // Device info endpoint — returns user-specified device ID
   app.get('/GetDeviceInformation', (_req, res) => {
-    if (deviceIdentifier) {
-      const deviceInfo = `<?xml version="1.0"?>
-<device type="c" xmlns="http://www.corelationinc.com/deviceLanguage/v1.0" version="2.0.0.0">
-  <deviceInformation type="c">
-  <identifier>${deviceIdentifier}</identifier>
-  <userServicePortNumber>3001</userServicePortNumber>
-  </deviceInformation>
-</device>`
-      res.type('text/xml').send(deviceInfo)
-      return
-    }
-    // Fallback to MAC addresses
-    const net = networkInterfaces()
-    const info: string[] = []
-    Object.keys(net).forEach(k => { info.push(...(net[k]?.map(i => i.mac) ?? [])) })
-    const macId = info.filter(i => i !== '00:00:00:00:00:00').sort().join(' ').replace(/:/g, '-')
     const deviceInfo = `<?xml version="1.0"?>
 <device type="c" xmlns="http://www.corelationinc.com/deviceLanguage/v1.0" version="2.0.0.0">
   <deviceInformation type="c">
-  <identifier>MAC: ${macId}</identifier>
+  <identifier>${deviceIdentifier || 'NOT_SET'}</identifier>
   <userServicePortNumber>3001</userServicePortNumber>
   </deviceInformation>
 </device>`
@@ -325,7 +309,7 @@ export function setupKeystoneProxy(
 
     const parametersId = req.query.scriptParametersId?.toString() ?? '-'
     const storedParams = ideParamsData[parametersId]
-    delete ideParamsData[parametersId]
+    // Don't delete params — hot reload needs them on subsequent requests
 
     let params: { crlogin: Record<string, string>; crscript: Record<string, string> }
     try {
@@ -333,9 +317,20 @@ export function setupKeystoneProxy(
     } catch {
       params = { crlogin: {}, crscript: {} }
     }
+
+    // Also check lastScriptParams as fallback for reloads without paramsId
+    if (!storedParams && lastScriptParams) {
+      try {
+        params = JSON.parse(lastScriptParams)
+      } catch {}
+    }
+
     if (ssoSessionId) params.crlogin.JSESSIONID = ssoSessionId
     params.crlogin.instance = params.crlogin.instance || KSInstance
     const scriptParameters = JSON.stringify(params)
+
+    // Cache for hot reload
+    lastScriptParams = scriptParameters
 
     if (ssoSessionId) res.cookie('JSESSIONID', ssoSessionId, { path: '/', httpOnly: false })
 

@@ -2,12 +2,18 @@ version: '3.8'
 
 services:
   keyscript-ide:
-    build: .
+    image: mykullzeroone/keyscript-ide:latest
+    build:
+      context: .
+      args:
+        APP_VERSION: "1.1.0"
     ports:
       - "3000:3000"
     volumes:
-      # Mount your local scripts/projects as the workspace
-      - ./workspace:/workspace
+      # Mount host filesystem for file browsing
+      # On a shared server, mount each user's home or a shared dev directory
+      - /home:/home:rw
+      - /workspace:/workspace:rw
     environment:
       - PORT=3000
       - WORKSPACE_PATH=/workspace
@@ -15,3 +21,9 @@ services:
       - SUPPORTED_INSTANCES=Development|Test|CARDS
       - NODE_TLS_REJECT_UNAUTHORIZED=0
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

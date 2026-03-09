@@ -14,17 +14,42 @@ declare namespace CR {
 
   /** XML document builder for constructing Keystone transaction XML */
   class XML {
-    constructor();
+    constructor(config?: { xmlText?: string });
     /** Get the root <query> element */
     getRootElement(): XMLElement;
+    /** Get root element name */
+    getRootElementName(): string;
     /** Serialize the XML document to a string */
     getXMLDocument(): string;
+    /** Create a namespaced element */
+    createElement(name: string): XMLElement;
     /** Add a container (non-leaf) element */
     addContainer(parent: XMLElement, name: string): XMLElement;
+    /** Remove a container element */
+    removeContainer(parent: XMLElement, child: XMLElement): void;
+    /** Set attribute on element */
+    setAttribute(element: XMLElement, name: string, value: string): void;
+    /** Remove attribute from element */
+    removeAttribute(element: XMLElement, name: string): void;
     /** Add a text element with a value */
-    addText(parent: XMLElement, name: string, value: any): XMLElement;
+    addText(parent: XMLElement, name: string, value: any, forceAdd?: boolean): XMLElement;
     /** Add an option element (Y/N, operation codes, etc.) */
     addOption(parent: XMLElement, name: string, value: string): XMLElement;
+    /** Add a count element */
+    addCount(parent: XMLElement, name: string, value: any, forceAdd?: boolean): XMLElement;
+    /** Add a money element */
+    addMoney(parent: XMLElement, name: string, value: any, forceAdd?: boolean): XMLElement;
+    /** Add a rate element */
+    addRate(parent: XMLElement, name: string, value: any, forceAdd?: boolean): XMLElement;
+    /** Add a date element */
+    addDate(parent: XMLElement, name: string, value: any, forceAdd?: boolean): XMLElement;
+    /** Add a time element */
+    addTime(parent: XMLElement, name: string, value: any, forceAdd?: boolean): XMLElement;
+    /** Add a document element */
+    addDocument(parent: XMLElement, name: string, value: any, forceAdd?: boolean): XMLElement;
+    /** Add a binary element */
+    addBinary(parent: XMLElement, name: string, value: any, forceAdd?: boolean): XMLElement;
+    [key: string]: any;
   }
 
   interface XMLElement {}
@@ -378,6 +403,10 @@ declare namespace CR {
     function getItem(key: string): string | null;
     function setItem(key: string, value: string): void;
     function removeItem(key: string): void;
+    /** Get item and parse as JSON, with optional default */
+    function getItemJSON(key: string, defaultValue?: any): any;
+    /** Stringify and save as JSON */
+    function setItemJSON(key: string, value: any): void;
     let keyBase: string;
   }
 
@@ -583,6 +612,15 @@ declare namespace CR {
     crGetDataType(): string;
     getValue(): any;
     setValue(value: any): void;
+    /** Convert date string (MM/DD/YYYY or YYYY-MM-DD) to JavaScript Date object */
+    static convertToJavaScript(value: string): Date | null;
+    /** Convert JavaScript Date to YYYY-MM-DD string */
+    static convertFromJavaScript(date: Date): string;
+    /** Convert date to display format MM/DD/YYYY */
+    static convertToDisplay(value: string): string;
+    /** Convert display format MM/DD/YYYY to storage format YYYY-MM-DD */
+    static convertFromDisplay(value: string): string;
+    [key: string]: any;
   }
 
   /** CR MoneyField — currency input with cents handling */
@@ -596,6 +634,13 @@ declare namespace CR {
     crGetDataType(): string;
     getValue(): string;
     setValue(value: string): void;
+    /** Format money value for display (e.g. "$1,234.56") */
+    static convertToDisplay(value: string | number, allowNegative?: boolean, isKeyUp?: boolean): string;
+    /** Remove display formatting, return numeric string */
+    static convertFromDisplay(value: string): string;
+    /** Convert number/string to money format with 2 decimal places */
+    static convertFromValue(value: string | number): string;
+    [key: string]: any;
   }
 
   /** CR SerialField — serial number input with search */
@@ -607,6 +652,7 @@ declare namespace CR {
     crGetContents(): string;
     crSetContents(value: string): void;
     crGetDataType(): string;
+    [key: string]: any;
   }
 
   /** CR OptionField — dropdown select with option values */
@@ -618,6 +664,7 @@ declare namespace CR {
     crGetContents(): string;
     crSetContents(value: string): void;
     crGetDataType(): string;
+    [key: string]: any;
   }
 
   /** CR CountField — numeric count input */
@@ -626,6 +673,11 @@ declare namespace CR {
     crGetContents(): string;
     crSetContents(value: string): void;
     crGetDataType(): string;
+    /** Convert count to display format */
+    static convertToDisplay(value: string | number): string;
+    /** Remove display formatting from count */
+    static convertFromDisplay(value: string): string;
+    [key: string]: any;
   }
 
   /** CR RateField — rate/percentage input */
@@ -636,6 +688,11 @@ declare namespace CR {
     crGetContents(): string;
     crSetContents(value: string): void;
     crGetDataType(): string;
+    /** Format rate for display with % symbol (e.g. "12.500%") */
+    static convertToDisplay(value: string | number, allowNegative?: boolean, isKeyUp?: boolean, minDecimals?: number): string;
+    /** Remove % formatting, return numeric string */
+    static convertFromDisplay(value: string): string;
+    [key: string]: any;
   }
 
   /** CR Checkbox — checkbox with CR data binding */
@@ -648,6 +705,7 @@ declare namespace CR {
     crSetContents(value: string): void;
     getValue(): boolean;
     setValue(value: boolean): void;
+    [key: string]: any;
   }
 
   /** CR TextAreaField — multiline text input */
@@ -658,6 +716,7 @@ declare namespace CR {
     });
     crGetContents(): string;
     crSetContents(value: string): void;
+    [key: string]: any;
   }
 
   /** CR TimeField — time input */
@@ -665,6 +724,11 @@ declare namespace CR {
     constructor(config?: CRFieldConfig);
     crGetContents(): string;
     crSetContents(value: string): void;
+    /** Convert time to display format (MM/DD/YYYY HH:MM:SS) */
+    static convertToDisplay(value: string): string;
+    /** Convert display format to storage format (YYYY-MM-DD HH:MM:SS) */
+    static convertFromDisplay(value: string): string;
+    [key: string]: any;
   }
 
   /** CR BinaryField — file upload/display */
@@ -672,6 +736,7 @@ declare namespace CR {
     constructor(config?: CRFieldConfig);
     crGetContents(): string;
     crSetContents(value: string): void;
+    [key: string]: any;
   }
 
   /** CR ColorPickerField — color selection */
@@ -679,6 +744,7 @@ declare namespace CR {
     constructor(config?: CRFieldConfig);
     crGetContents(): string;
     crSetContents(value: string): void;
+    [key: string]: any;
   }
 
   /** CR DocumentField — document reference field */
@@ -686,6 +752,7 @@ declare namespace CR {
     constructor(config?: CRFieldConfig);
     crGetContents(): string;
     crSetContents(value: string): void;
+    [key: string]: any;
   }
 
   // ─── CR Toolbar & Menu Components ───────────────────────────

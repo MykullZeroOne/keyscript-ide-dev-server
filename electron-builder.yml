@@ -1,0 +1,54 @@
+appId: com.revfcu.keyscript-ide
+productName: Keyscript IDE
+copyright: Copyright © 2026 REVFCU
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**/*
+  - views/**/*
+  - public/**/*
+  - "!public/scripts/**/*"
+  - package.json
+  - "!src/**/*"
+  - "!scripts/**/*"
+  - "!workspace/**/*"
+  - "!.claude/**/*"
+  - "!.git/**/*"
+  - "!dist/**/*"
+
+asar: true
+
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [universal]
+    - target: zip
+      arch: [universal]
+  artifactName: "${productName}-${version}-mac.${ext}"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: "${productName}-${version}-win.${ext}"
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  deleteAppDataOnUninstall: true
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  artifactName: "${productName}-${version}-linux.${ext}"
+
+publish:
+  provider: generic
+  url: ""

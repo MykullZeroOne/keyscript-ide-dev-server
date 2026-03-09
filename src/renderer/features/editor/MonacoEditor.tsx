@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import Editor, { type Monaco } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import { useEditorStore } from './EditorStore'
@@ -31,8 +31,12 @@ function configureMonaco(monaco: Monaco) {
   registerCRCompletions(monaco)
 
   // Configure JavaScript defaults for better IntelliSense
+  // Syntax errors only — semantic validation causes false positives
+  // with CR framework (e.g. "property does not exist on type") since
+  // we can't declare every possible CR method. The type declarations
+  // still power IntelliSense/autocomplete without generating errors.
   monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-    noSemanticValidation: false,
+    noSemanticValidation: true,
     noSyntaxValidation: false,
   })
 
@@ -58,6 +62,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({ path }) => {
   const [content, setContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const updateContent = useEditorStore((s) => s.updateContent)
   const tabId = `editor-${path}`
@@ -89,25 +94,42 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({ path }) => {
     loadFile()
   }, [path])
 
-  const handleSave = useCallback(async () => {
-    const currentContent = isLargeFile
-      ? (editorRef.current?.getValue() ?? '')
-      : (content ?? '')
+  // Use a ref for save so the keybinding always calls the latest logic
+  const saveRef = useRef<() => Promise<void>>()
+  saveRef.current = async () => {
+    // Always read directly from the editor instance — never from stale state
+    const currentContent = editorRef.current?.getValue() ?? ''
 
+    setSaveStatus('saving')
     const result = isAbsolutePath(path)
       ? await window.api.writeAbsolute(path, currentContent)
       : await window.api.writeFile(path, currentContent)
+
     if (!result.success) {
       console.error(`Failed to save: ${result.error}`)
-    }
-  }, [path, content, isLargeFile])
+      setSaveStatus('error')
+    } else {
+      // Clear dirty flag
+      useEditorStore.setState((state) => ({
+        tabs: state.tabs.map((t) => (t.id === tabId ? { ...t, isDirty: false } : t))
+      }))
+      setSaveStatus('saved')
 
-  const handleMount = useCallback((ed: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+      // Hot reload: if split preview is open, refresh it
+      const { splitPreview, reloadPreview } = useEditorStore.getState()
+      if (splitPreview) reloadPreview()
+    }
+
+    // Clear status after a moment
+    setTimeout(() => setSaveStatus('idle'), 1500)
+  }
+
+  const handleMount = (ed: editor.IStandaloneCodeEditor, monaco: Monaco) => {
     editorRef.current = ed
 
-    // Save command
+    // Save command — uses ref so it always calls the current save logic
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      handleSave()
+      saveRef.current?.()
     })
 
     // Register extra keybindings
@@ -122,7 +144,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({ path }) => {
 
     // Focus editor
     ed.focus()
-  }, [handleSave, isLargeFile, tabId, updateContent])
+  }
 
   if (loading) {
     return <div className="h-full bg-[#1e1e1e] flex items-center justify-center text-[#858585] text-sm">Loading file...</div>
@@ -138,12 +160,24 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({ path }) => {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div className="flex-1 flex flex-col h-full relative">
       {isLargeFile && (
         <div className="h-6 flex items-center px-3 bg-[#2a2d2e] text-[10px] text-[#858585] shrink-0">
           Large file ({(content!.length / 1024 / 1024).toFixed(1)} MB) — some features disabled for performance
         </div>
       )}
+
+      {/* Save status indicator */}
+      {saveStatus !== 'idle' && (
+        <div className={`absolute top-2 right-4 z-10 px-2 py-1 rounded text-[11px] font-medium ${
+          saveStatus === 'saving' ? 'bg-[#007acc]/80 text-white' :
+          saveStatus === 'saved' ? 'bg-[#4ec9b0]/80 text-white' :
+          'bg-[#f48771]/80 text-white'
+        }`}>
+          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save failed'}
+        </div>
+      )}
+
       <Editor
         height="100%"
         defaultLanguage={language}

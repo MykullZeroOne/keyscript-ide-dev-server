@@ -144,10 +144,10 @@ export const AppBuilderSidebar: React.FC = () => {
       })
       const data = await res.json()
       const paramsId = data?.value || ''
-      useEditorStore.getState().runScript(bundlePath, paramsId)
+      useEditorStore.getState().runScriptSplit(bundlePath, paramsId)
     } catch {
       // Run without params
-      useEditorStore.getState().runScript(bundlePath)
+      useEditorStore.getState().runScriptSplit(bundlePath)
     }
   }
 

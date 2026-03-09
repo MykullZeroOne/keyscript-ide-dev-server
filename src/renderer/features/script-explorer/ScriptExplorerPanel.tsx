@@ -41,7 +41,8 @@ async function storeParametersAndRun(relativePath: string) {
     const data = await response.json()
     if (data.success && data.id) paramsId = data.id
   } catch {}
-  useEditorStore.getState().runScript(relativePath, paramsId)
+  // Use split view so code + preview are side-by-side
+  useEditorStore.getState().runScriptSplit(relativePath, paramsId)
 }
 
 const FileTreeItem: React.FC<{

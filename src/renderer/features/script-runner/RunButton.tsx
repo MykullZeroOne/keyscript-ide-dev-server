@@ -23,7 +23,7 @@ async function storeParameters(): Promise<string | null> {
 }
 
 const RunButton: React.FC = () => {
-  const { tabs, activeTabId, runScript } = useEditorStore()
+  const { tabs, activeTabId, runScriptSplit } = useEditorStore()
   const [running, setRunning] = useState(false)
   const activeTab = tabs.find((t) => t.id === activeTabId)
   const isEditor = activeTab && !activeTab.isExecuting
@@ -39,7 +39,7 @@ const RunButton: React.FC = () => {
       if (currentProject && scriptPath.startsWith(currentProject + '/')) {
         scriptPath = scriptPath.substring(currentProject.length + 1)
       }
-      runScript(scriptPath, paramsId ?? undefined)
+      runScriptSplit(scriptPath, paramsId ?? undefined)
     } finally {
       setRunning(false)
     }
