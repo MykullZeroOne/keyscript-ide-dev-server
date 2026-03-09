@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow } from 'electron'
-import { join } from 'path'
+import path, { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { setupProxy } from './proxy'
 import { setupIpc } from './ipc'
@@ -39,8 +39,17 @@ function createWindow(): void {
   }
 }
 
-// Enable Kerberos/SPNEGO authentication for the proxy and Keystone server
-const proxyEndpoint = process.env.PROXY_ENDPOINT || 'keystone:8443'
+// Load saved settings for proxy endpoint
+import { existsSync as fsExistsSync, readFileSync } from 'fs'
+const settingsFile = path.join(app.getPath('userData'), 'settings.json')
+let savedEndpoint = ''
+try {
+  if (fsExistsSync(settingsFile)) {
+    const s = JSON.parse(readFileSync(settingsFile, 'utf-8'))
+    savedEndpoint = s.proxyEndpoint || ''
+  }
+} catch {}
+const proxyEndpoint = savedEndpoint || process.env.PROXY_ENDPOINT || 'keystonedev.revfcu.com:8443'
 const keystoneHost = proxyEndpoint.replace(/:\d+$/, '')
 app.commandLine.appendSwitch('auth-server-whitelist', `localhost,${keystoneHost}`)
 app.commandLine.appendSwitch('auth-negotiate-delegate-whitelist', `localhost,${keystoneHost}`)
@@ -66,8 +75,15 @@ app.whenReady().then(() => {
   const rootPath = process.cwd();
   const hostPort = Number(process.env.PORT || 3000);
   const servicePort = hostPort + 1;
-  const proxyEndpoint = process.env.PROXY_ENDPOINT || 'keystone:8443';
-  const supportedInstances = (process.env.SUPPORTED_INSTANCES || 'Test').split('|');
+  // Use saved settings, falling back to env vars / defaults
+  let savedCfg: any = {}
+  try {
+    if (fsExistsSync(settingsFile)) {
+      savedCfg = JSON.parse(readFileSync(settingsFile, 'utf-8'))
+    }
+  } catch {}
+  const proxyEndpoint = savedCfg.proxyEndpoint || process.env.PROXY_ENDPOINT || 'keystonedev.revfcu.com:8443';
+  const supportedInstances = savedCfg.supportedInstances || (process.env.SUPPORTED_INSTANCES || 'Development|Test|CARDS').split('|');
 
   try {
     setupProxy(rootPath, hostPort, servicePort, proxyEndpoint, supportedInstances, (event) => {

@@ -9,14 +9,40 @@ import type { TemplateFile } from './bundler'
 
 // Credential storage file path
 const credentialsPath = path.join(app.getPath('userData'), 'credentials.json')
+const settingsPath = path.join(app.getPath('userData'), 'settings.json')
+
+// Load saved settings from disk
+function loadSettings(): { proxyEndpoint?: string; supportedInstances?: string[] } {
+  try {
+    if (existsSync(settingsPath)) {
+      return JSON.parse(require('fs').readFileSync(settingsPath, 'utf-8'))
+    }
+  } catch {}
+  return {}
+}
+
+const savedSettings = loadSettings()
 
 export function setupIpc(): void {
-  // App config
+  // App config — user settings override env vars/defaults
   ipcMain.handle('app:config', () => ({
-    proxyEndpoint: process.env.PROXY_ENDPOINT || 'keystone:8443',
-    supportedInstances: (process.env.SUPPORTED_INSTANCES || 'Test').split('|'),
+    proxyEndpoint: savedSettings.proxyEndpoint || process.env.PROXY_ENDPOINT || 'keystonedev.revfcu.com:8443',
+    supportedInstances: savedSettings.supportedInstances || (process.env.SUPPORTED_INSTANCES || 'Development|Test|CARDS').split('|'),
     port: Number(process.env.PORT || 3000)
   }))
+
+  // Save settings from the Settings panel
+  ipcMain.handle('app:save-settings', async (_, settings: { proxyEndpoint?: string; supportedInstances?: string[] }) => {
+    try {
+      if (settings.proxyEndpoint) savedSettings.proxyEndpoint = settings.proxyEndpoint
+      if (settings.supportedInstances) savedSettings.supportedInstances = settings.supportedInstances
+      await writeFile(settingsPath, JSON.stringify(savedSettings, null, 2), 'utf-8')
+      return { success: true }
+    } catch (e) {
+      console.error('Failed to save settings:', e)
+      return { success: false }
+    }
+  })
 
   // Credential storage — username in plain text, password encrypted via safeStorage
   ipcMain.handle('credentials:save', async (_, username: string, password: string) => {

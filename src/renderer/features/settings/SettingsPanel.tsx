@@ -1,17 +1,67 @@
 import React, { useEffect, useState } from 'react'
-import { Globe, Server, HardDrive, Trash2 } from 'lucide-react'
+import { Globe, Trash2, Plus, X, Save, RotateCcw } from 'lucide-react'
+
+const SETTINGS_KEY = 'keyscript-settings'
+
+interface AppSettings {
+  proxyEndpoint: string
+  supportedInstances: string[]
+  port: number
+}
+
+/** Load user overrides from localStorage */
+function loadSavedSettings(): Partial<AppSettings> {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+/** Save user overrides to localStorage */
+function saveSettings(settings: Partial<AppSettings>): void {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+}
+
+/** Push updated settings to the server/main process so the proxy uses them */
+async function pushSettings(settings: Partial<AppSettings>): Promise<void> {
+  if ((window as any).electron) {
+    // Electron — save via IPC
+    try {
+      const { ipcRenderer } = (window as any).electron
+      await ipcRenderer?.invoke?.('app:save-settings', settings)
+    } catch {}
+  } else {
+    // Web/Docker — save via HTTP
+    try {
+      await fetch('/api/config/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      })
+    } catch {}
+  }
+}
 
 export const SettingsPanel: React.FC = () => {
-  const [config, setConfig] = useState<{
-    proxyEndpoint: string
-    supportedInstances: string[]
-    port: number
-  } | null>(null)
+  const [serverConfig, setServerConfig] = useState<AppSettings | null>(null)
+  const [endpoint, setEndpoint] = useState('')
+  const [instances, setInstances] = useState<string[]>([])
+  const [newInstance, setNewInstance] = useState('')
   const [credentialStatus, setCredentialStatus] = useState<string>('')
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
-    window.api?.getConfig().then(setConfig).catch(() => {})
+    window.api?.getConfig().then((config) => {
+      setServerConfig(config)
+      // Apply any user overrides from localStorage
+      const overrides = loadSavedSettings()
+      setEndpoint(overrides.proxyEndpoint || config.proxyEndpoint || '')
+      setInstances(overrides.supportedInstances || config.supportedInstances || [])
+    }).catch(() => {})
     window.api?.loadCredentials().then((creds) => {
       setCredentialStatus(creds?.username ? creds.username : '')
     }).catch(() => setCredentialStatus(''))
@@ -23,6 +73,43 @@ export const SettingsPanel: React.FC = () => {
     setShowClearConfirm(false)
   }
 
+  const handleSave = async () => {
+    const overrides: Partial<AppSettings> = {
+      proxyEndpoint: endpoint,
+      supportedInstances: instances
+    }
+    saveSettings(overrides)
+    await pushSettings(overrides)
+    setSaved(true)
+    setDirty(false)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleReset = () => {
+    if (!serverConfig) return
+    localStorage.removeItem(SETTINGS_KEY)
+    setEndpoint(serverConfig.proxyEndpoint)
+    setInstances(serverConfig.supportedInstances)
+    setDirty(false)
+    pushSettings({
+      proxyEndpoint: serverConfig.proxyEndpoint,
+      supportedInstances: serverConfig.supportedInstances
+    })
+  }
+
+  const addInstance = () => {
+    const name = newInstance.trim()
+    if (!name || instances.includes(name)) return
+    setInstances([...instances, name])
+    setNewInstance('')
+    setDirty(true)
+  }
+
+  const removeInstance = (inst: string) => {
+    setInstances(instances.filter(i => i !== inst))
+    setDirty(true)
+  }
+
   return (
     <div className="h-full flex flex-col overflow-y-auto">
       <div className="p-3 space-y-1">
@@ -31,13 +118,17 @@ export const SettingsPanel: React.FC = () => {
         <SettingsGroup label="Connection">
           <SettingsItem
             label="Keystone Server"
-            description="Remote Keystone endpoint for API proxying"
+            description="Hostname and port of the Keystone endpoint"
           >
             <div className="flex items-center gap-1.5 mt-1">
               <Globe size={13} className="text-[#569cd6] shrink-0" />
-              <code className="text-[12px] text-[#ce9178] bg-[#1e1e1e] rounded px-1.5 py-0.5 truncate">
-                {config?.proxyEndpoint || '—'}
-              </code>
+              <input
+                type="text"
+                value={endpoint}
+                onChange={(e) => { setEndpoint(e.target.value); setDirty(true) }}
+                placeholder="keystonedev.revfcu.com:8443"
+                className="flex-1 bg-[#1e1e1e] border border-[#414141] rounded px-2 py-1 text-[12px] text-[#ce9178] font-mono focus:outline-none focus:border-[#007acc]"
+              />
             </div>
           </SettingsItem>
 
@@ -46,7 +137,7 @@ export const SettingsPanel: React.FC = () => {
             description="Local proxy port for script execution"
           >
             <code className="text-[12px] text-[#b5cea8] bg-[#1e1e1e] rounded px-1.5 py-0.5">
-              {config?.port || '—'}
+              {serverConfig?.port || '—'}
             </code>
           </SettingsItem>
 
@@ -55,16 +146,66 @@ export const SettingsPanel: React.FC = () => {
             description="Available Keystone environments"
           >
             <div className="flex flex-wrap gap-1 mt-1">
-              {(config?.supportedInstances || []).map((inst) => (
+              {instances.map((inst) => (
                 <span
                   key={inst}
-                  className="text-[11px] px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#cccccc] border border-[#333333]"
+                  className="group text-[11px] px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#cccccc] border border-[#333333] flex items-center gap-1"
                 >
                   {inst}
+                  <button
+                    onClick={() => removeInstance(inst)}
+                    className="opacity-0 group-hover:opacity-100 text-[#858585] hover:text-[#f48771] transition-opacity"
+                    title="Remove instance"
+                  >
+                    <X size={10} />
+                  </button>
                 </span>
               ))}
             </div>
+            <div className="flex gap-1 mt-1.5">
+              <input
+                type="text"
+                value={newInstance}
+                onChange={(e) => setNewInstance(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addInstance() }}
+                placeholder="Add instance..."
+                className="flex-1 bg-[#1e1e1e] border border-[#414141] rounded px-2 py-1 text-[11px] text-white placeholder-[#5a5a5a] focus:outline-none focus:border-[#007acc]"
+              />
+              <button
+                onClick={addInstance}
+                className="px-1.5 bg-[#383838] hover:bg-[#4c4c4c] rounded text-[#cccccc] hover:text-white transition-colors"
+                title="Add instance"
+              >
+                <Plus size={12} />
+              </button>
+            </div>
           </SettingsItem>
+
+          {/* Save / Reset buttons */}
+          <div className="flex gap-2 pt-2 px-3">
+            <button
+              onClick={handleSave}
+              disabled={!dirty}
+              className={`flex-1 flex items-center justify-center gap-1.5 h-[28px] text-[11px] rounded transition-colors ${
+                saved
+                  ? 'bg-[#4ec9b0]/20 text-[#4ec9b0] border border-[#4ec9b0]/30'
+                  : dirty
+                    ? 'bg-[#007acc] text-white hover:bg-[#1a8ad4]'
+                    : 'bg-[#2a2d2e] text-[#5a5a5a] cursor-not-allowed'
+              }`}
+            >
+              <Save size={12} />
+              {saved ? 'Saved' : 'Save Settings'}
+            </button>
+            <button
+              onClick={handleReset}
+              className="flex items-center justify-center gap-1 h-[28px] px-3 text-[11px] text-[#858585] hover:text-[#cccccc] bg-[#2a2d2e] hover:bg-[#383838] rounded transition-colors"
+              title="Reset to defaults"
+            >
+              <RotateCcw size={12} />
+              Reset
+            </button>
+          </div>
         </SettingsGroup>
 
         {/* Security group */}
@@ -111,19 +252,13 @@ export const SettingsPanel: React.FC = () => {
         <SettingsGroup label="About">
           <SettingsItem
             label="Keyscript IDE"
-            description="Electron + React + Monaco development environment for Keystone scripts"
+            description="Development environment for Keystone scripts"
           >
             <div className="flex items-center gap-3 mt-1 text-[11px] text-[#858585]">
               <span>{navigator.platform}</span>
             </div>
           </SettingsItem>
         </SettingsGroup>
-
-        {/* Hint */}
-        <div className="pt-2 text-[11px] text-[#5a5a5a] leading-relaxed">
-          Connection settings are configured via the <code className="text-[#ce9178]">.env</code> file
-          in the project root.
-        </div>
 
       </div>
     </div>

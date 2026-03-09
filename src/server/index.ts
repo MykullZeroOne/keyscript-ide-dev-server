@@ -28,9 +28,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const PORT = Number(process.env.PORT || 3000)
 const WORKSPACE = process.env.WORKSPACE_PATH || '/workspace'
-const PROXY_ENDPOINT = process.env.PROXY_ENDPOINT || 'keystonedev.revfcu.com:8443'
-const SUPPORTED_INSTANCES = (process.env.SUPPORTED_INSTANCES || 'Development|Test|CARDS').split('|')
 const ROOT_PATH = process.env.ROOT_PATH || path.resolve(__dirname, '..')
+
+// Mutable runtime config — can be updated via /api/config/update
+const runtimeConfig = {
+  proxyEndpoint: process.env.PROXY_ENDPOINT || 'keystonedev.revfcu.com:8443',
+  supportedInstances: (process.env.SUPPORTED_INSTANCES || 'Development|Test|CARDS').split('|')
+}
 
 const app = express()
 const server = createServer(app)
@@ -43,8 +47,8 @@ const APP_VERSION = process.env.APP_VERSION || '1.1.0'
 
 app.get('/api/config', (_req, res) => {
   res.json({
-    proxyEndpoint: PROXY_ENDPOINT,
-    supportedInstances: SUPPORTED_INSTANCES,
+    proxyEndpoint: runtimeConfig.proxyEndpoint,
+    supportedInstances: runtimeConfig.supportedInstances,
     port: PORT,
     workspace: WORKSPACE,
     mode: 'web',
@@ -54,6 +58,18 @@ app.get('/api/config', (_req, res) => {
 
 app.get('/api/version', (_req, res) => {
   res.json({ version: APP_VERSION, mode: 'web' })
+})
+
+// Update config at runtime (from Settings panel)
+app.post('/api/config/update', express.json(), (req, res) => {
+  if (req.body.proxyEndpoint) {
+    runtimeConfig.proxyEndpoint = req.body.proxyEndpoint
+  }
+  if (Array.isArray(req.body.supportedInstances)) {
+    runtimeConfig.supportedInstances = req.body.supportedInstances
+  }
+  console.log(`[Config] Updated — endpoint: ${runtimeConfig.proxyEndpoint}, instances: ${runtimeConfig.supportedInstances.join(', ')}`)
+  res.json({ success: true })
 })
 
 // Home directory and quick-access bookmarks for folder picker (fallback for non-FS-Access browsers)
@@ -99,15 +115,15 @@ app.use('/assets', express.static(path.join(rendererPath, 'assets')))
 
 // ─── 3. Keystone proxy (catch-all — LAST) ────────────────────
 
-setupKeystoneProxy(app, ROOT_PATH, PORT, PROXY_ENDPOINT, SUPPORTED_INSTANCES)
+setupKeystoneProxy(app, ROOT_PATH, PORT, runtimeConfig.proxyEndpoint, runtimeConfig.supportedInstances)
 
 // ─── Start ───────────────────────────────────────────────────
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Keyscript IDE server started on port ${PORT}`)
   console.log(`  Workspace: ${WORKSPACE}`)
-  console.log(`  Keystone:  ${PROXY_ENDPOINT}`)
-  console.log(`  Instances: ${SUPPORTED_INSTANCES.join(', ')}`)
+  console.log(`  Keystone:  ${runtimeConfig.proxyEndpoint}`)
+  console.log(`  Instances: ${runtimeConfig.supportedInstances.join(', ')}`)
   console.log(`  SPA:       ${rendererPath}`)
   console.log(`  Open:      http://localhost:${PORT}/`)
 })
