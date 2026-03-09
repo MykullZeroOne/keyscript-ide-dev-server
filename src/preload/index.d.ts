@@ -10,6 +10,7 @@ declare global {
       writeTerminal: (data: string) => void
       onTerminalData: (callback: (data: string) => void) => void
       resizeTerminal: (cols: number, rows: number) => void
+      onNetworkEvent: (callback: (event: any) => void) => void
     }
   }
 }

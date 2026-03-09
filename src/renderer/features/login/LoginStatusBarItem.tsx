@@ -10,7 +10,7 @@ const LoginStatusBarItem: React.FC = () => {
   return (
     <div className="flex items-center space-x-2 h-full">
       <div 
-        className={`flex items-center space-x-2 px-2 h-full cursor-pointer hover:bg-white/10 transition-colors ${isLoggedIn ? 'text-green-300' : 'text-slate-300'}`}
+        className={`flex items-center space-x-2 px-2 h-full cursor-pointer hover:bg-white/10 transition-colors ${isLoggedIn ? 'text-white' : 'text-white/80'}`}
         onClick={() => !isLoggedIn && setIsDialogOpen(true)}
       >
         {isLoggedIn ? (
@@ -32,7 +32,7 @@ const LoginStatusBarItem: React.FC = () => {
       {isLoggedIn && (
         <button 
           onClick={logout}
-          className="px-2 h-full hover:bg-white/10 transition-colors text-slate-300 flex items-center"
+          className="px-2 h-full hover:bg-white/10 transition-colors text-white/80 flex items-center"
           title="Logout"
         >
           <LogOut className="w-3 h-3" />

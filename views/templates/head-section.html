@@ -18,7 +18,7 @@
       window.CR = window.CR || {};
       CR.Core = CR.Core || {};
       CR.Core.extBaseURL = "../ext-3.2.2";
-      // CR.Core.keyStoneWebAppURL = "http://localhose:3000/Test/";
+      CR.Core.keyStoneWebAppURL = "http://localhost:{{ hostPort }}/{{ instance }}/";
     </script>
     <script
       type="text/javascript"
@@ -33,7 +33,7 @@
       src="/KeyScript/js/keyscript-all.js?Rev=2022_03_00v01.02.dncutest6_4958"
     ></script>
     <script type="text/javascript">
-      CR.KeyStoneService.SERVICE_BASE_URL = "{{ protocol }}://localhost:{{ servicePort }}"  // "https://127.0.0.1:51763";
+      CR.KeyStoneService.SERVICE_BASE_URL = "{{ serviceBaseUrl }}";
     </script>
     <link
       rel="stylesheet"

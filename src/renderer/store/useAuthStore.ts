@@ -1,11 +1,23 @@
 import { create } from 'zustand';
 
+interface LoginResponse {
+  userName?: string
+  userSerial?: string
+  JSESSIONID?: string
+  databaseName?: string
+  locationName?: string
+  postingDate?: string
+  deviceName?: string
+  [key: string]: unknown
+}
+
 interface AuthState {
   isLoggedIn: boolean;
   username: string | null;
   instance: string | null;
   jsessionId: string | null;
-  setLogin: (username: string, instance: string, jsessionId: string) => void;
+  loginData: LoginResponse | null;
+  setLogin: (username: string, instance: string, jsessionId: string, loginData?: LoginResponse) => void;
   logout: () => void;
 }
 
@@ -14,16 +26,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   username: null,
   instance: null,
   jsessionId: null,
-  setLogin: (username, instance, jsessionId) => set({
+  loginData: null,
+  setLogin: (username, instance, jsessionId, loginData) => set({
     isLoggedIn: true,
     username,
     instance,
-    jsessionId
+    jsessionId,
+    loginData: loginData || null
   }),
   logout: () => set({
     isLoggedIn: false,
     username: null,
     instance: null,
-    jsessionId: null
+    jsessionId: null,
+    loginData: null
   })
 }));

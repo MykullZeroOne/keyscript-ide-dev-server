@@ -1,60 +1,92 @@
-import React, { useEffect, useRef } from 'react';
-import { Terminal } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
+import React, { useEffect, useRef, useState } from 'react'
+import { Terminal } from 'xterm'
+import { FitAddon } from 'xterm-addon-fit'
 
 const TerminalTab: React.FC = () => {
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const termInstance = useRef<Terminal | null>(null);
-  const fitAddon = useRef<FitAddon | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const terminalRef = useRef<HTMLDivElement>(null)
+  const termInstance = useRef<Terminal | null>(null)
+  const fitRef = useRef<FitAddon | null>(null)
+  const initialized = useRef(false)
+  const [ready, setReady] = useState(false)
 
+  // Phase 1: wait for container to have layout dimensions
   useEffect(() => {
-    if (!terminalRef.current) return;
+    const el = containerRef.current
+    if (!el) return
 
+    if (el.clientHeight > 0) {
+      setReady(true)
+      return
+    }
+
+    const ro = new ResizeObserver(() => {
+      if (el.clientHeight > 0) {
+        setReady(true)
+        ro.disconnect()
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Phase 2: once container is ready, create and open the terminal
+  useEffect(() => {
+    if (!ready || !terminalRef.current || initialized.current) return
+    initialized.current = true
+
+    const el = terminalRef.current
     const term = new Terminal({
       cursorBlink: true,
       theme: {
-        background: '#0f172a', // slate-900
-        foreground: '#cbd5e1', // slate-300
+        background: '#1e1e1e',
+        foreground: '#cccccc',
+        cursor: '#aeafad',
+        selectionBackground: '#264f78'
       },
       fontSize: 12,
-      fontFamily: 'JetBrains Mono, Menlo, Monaco, Courier New, monospace',
-    });
+      fontFamily: 'JetBrains Mono, Menlo, Monaco, Courier New, monospace'
+    })
 
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.open(terminalRef.current);
-    fit.fit();
+    const fit = new FitAddon()
+    term.loadAddon(fit)
+    fitRef.current = fit
+    term.open(el)
+    termInstance.current = term
 
-    termInstance.current = term;
-    fitAddon.current = fit;
+    try { fit.fit() } catch { /* ignore */ }
 
-    // Initialize pty in main process
-    (window as any).api.initTerminal(process.cwd());
-
-    // Listen for data from main process
-    (window as any).api.onTerminalData((data: string) => {
-      term.write(data);
-    });
-
-    // Handle user input
+    window.api.initTerminal('')
+    window.api.onTerminalData((data: string) => {
+      term.write(data)
+    })
     term.onData((data) => {
-      (window as any).api.writeTerminal(data);
-    });
+      window.api.writeTerminal(data)
+    })
 
-    const handleResize = () => {
-      fit.fit();
-      (window as any).api.resizeTerminal(term.cols, term.rows);
-    };
+    const handleResize = (): void => {
+      try {
+        fit.fit()
+        window.api.resizeTerminal(term.cols, term.rows)
+      } catch { /* not ready */ }
+    }
 
-    window.addEventListener('resize', handleResize);
+    const ro = new ResizeObserver(handleResize)
+    ro.observe(el)
+    window.addEventListener('resize', handleResize)
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      term.dispose();
-    };
-  }, []);
+      window.removeEventListener('resize', handleResize)
+      ro.disconnect()
+      term.dispose()
+    }
+  }, [ready])
 
-  return <div ref={terminalRef} className="h-full w-full bg-slate-900" />;
-};
+  return (
+    <div ref={containerRef} className="h-full w-full bg-[#1e1e1e]">
+      {ready && <div ref={terminalRef} className="h-full w-full" />}
+    </div>
+  )
+}
 
-export default TerminalTab;
+export default TerminalTab

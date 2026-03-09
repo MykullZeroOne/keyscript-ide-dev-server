@@ -1,170 +1,353 @@
-import React, { useState, useEffect } from 'react';
-import { useAuthStore } from '../../store/useAuthStore';
-import { LogIn, Server, User, Lock, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react'
+import { useAuthStore } from '../../store/useAuthStore'
+import { useScriptOptionsStore } from '../script-options/ScriptOptionsStore'
+import { LogIn, Server, User, Lock, AlertCircle, Globe, Shield } from 'lucide-react'
 
 interface LoginDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen: boolean
+  onClose: () => void
 }
 
 const LoginDialog: React.FC<LoginDialogProps> = ({ isOpen, onClose }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [instance, setInstance] = useState('Test');
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const setLogin = useAuthStore(state => state.setLogin);
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [instance, setInstance] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [ssoStatus, setSsoStatus] = useState<'idle' | 'attempting' | 'failed' | 'success'>('idle')
+  const [proxyEndpoint, setProxyEndpoint] = useState('')
+  const [supportedInstances, setSupportedInstances] = useState<string[]>([])
+  const [showManualLogin, setShowManualLogin] = useState(false)
+  const setLogin = useAuthStore((state) => state.setLogin)
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) return
+    setError(null)
+    setSsoStatus('idle')
+    setShowManualLogin(false)
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
+    window.api?.getConfig().then((config) => {
+      setProxyEndpoint(config.proxyEndpoint)
+      setSupportedInstances(config.supportedInstances)
+      if (!instance && config.supportedInstances.length > 0) {
+        setInstance(config.supportedInstances[0])
+      }
+    }).catch(() => {
+      setSupportedInstances(['Test'])
+      if (!instance) setInstance('Test')
+    })
+
+    // Load cached credentials
+    window.api?.loadCredentials().then((creds) => {
+      if (creds) {
+        setUsername(creds.username)
+        setPassword(creds.password)
+      }
+    }).catch(() => {})
+  }, [isOpen])
+
+  // Auto-attempt SSO when dialog opens and instance is set
+  useEffect(() => {
+    if (!isOpen || !instance || ssoStatus !== 'idle') return
+    attemptSso()
+  }, [isOpen, instance])
+
+  const getDeviceIdentifier = async (): Promise<string> => {
+    try {
+      const deviceRes = await fetch('/GetDeviceInformation')
+      const deviceXml = await deviceRes.text()
+      const match = deviceXml.match(/<identifier>(.*?)<\/identifier>/)
+      return match ? match[1] : ''
+    } catch {
+      return ''
+    }
+  }
+
+  const attemptSso = async () => {
+    setSsoStatus('attempting')
+    setError(null)
 
     try {
-      // 1. Get Device Information
-      // In the real app, this might be on a different port, but the proxy mocks it.
-      // We'll try to fetch it from the proxy's service port.
-      const servicePort = 3001; // Should probably be dynamic
-      let deviceIdentifier = '';
-      try {
-        const deviceRes = await fetch(`http://localhost:${servicePort}/GetDeviceInformation`);
-        const deviceXml = await deviceRes.text();
-        const match = deviceXml.match(/<identifier>(.*?)<\/identifier>/);
-        if (match) deviceIdentifier = match[1];
-      } catch (e) {
-        console.warn('Failed to get device information', e);
+      // 1. Set instance on the proxy
+      await fetch(`/${instance}`, { method: 'GET' }).catch(() => {})
+
+      // 2. Get device identifier
+      const deviceIdentifier = await getDeviceIdentifier()
+
+      // 3. Attempt Kerberos SSO via hidden iframe
+      // Must hit Keystone DIRECTLY — Kerberos tokens are bound to the target hostname
+      if (!proxyEndpoint) {
+        setSsoStatus('failed')
+        setShowManualLogin(true)
+        return
       }
 
-      // 2. Perform Login
-      // The proxy expects the instance in the URL or it uses the last one seen.
-      // We should probably hit /{instance}/UserLogin
-      const response = await fetch(`/${instance}/UserLogin`, {
+      const proto = proxyEndpoint.endsWith(':8443') || proxyEndpoint.endsWith(':443') ? 'https' : 'http'
+      const keystoneUrl = proxyEndpoint.startsWith('http') ? proxyEndpoint : `${proto}://${proxyEndpoint}`
+      const params = new URLSearchParams({
+        loginDeviceIdentifier: deviceIdentifier,
+        loginDeviceInsertOption: 'N'
+      })
+      const ssoUrl = `${keystoneUrl}/${instance}/UserLogin?${params.toString()}`
+
+      const iframe = document.createElement('iframe')
+      iframe.style.display = 'none'
+      iframe.src = ssoUrl
+      document.body.appendChild(iframe)
+
+      // Wait for iframe to load and check response
+      const timeout = setTimeout(() => {
+        document.body.removeChild(iframe)
+        setSsoStatus('failed')
+        setShowManualLogin(true)
+      }, 8000)
+
+      iframe.onload = () => {
+        clearTimeout(timeout)
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow?.document
+          const text = doc?.body?.innerText || ''
+          const data = JSON.parse(text)
+
+          if (data.success && data.userName) {
+            // Share JSESSIONID with Express proxy
+            fetch('/api/sso-session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsessionId: data.JSESSIONID })
+            }).catch(() => {})
+            setLogin(data.userName, instance, data.JSESSIONID, data)
+            useScriptOptionsStore.getState().setInstance(instance)
+            setSsoStatus('success')
+            document.body.removeChild(iframe)
+            onClose()
+            return
+          }
+        } catch {
+          // Could not parse — might be cross-origin or HTML error page
+        }
+        document.body.removeChild(iframe)
+        setSsoStatus('failed')
+        setShowManualLogin(true)
+      }
+
+      iframe.onerror = () => {
+        clearTimeout(timeout)
+        document.body.removeChild(iframe)
+        setSsoStatus('failed')
+        setShowManualLogin(true)
+      }
+    } catch {
+      setSsoStatus('failed')
+      setShowManualLogin(true)
+    }
+  }
+
+  const handleManualLogin = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      // 1. Set instance on the proxy
+      await fetch(`/${instance}`, { method: 'GET' }).catch(() => {})
+
+      // 2. Get device identifier
+      const deviceIdentifier = await getDeviceIdentifier()
+
+      // 3. Login with username/password
+      const response = await fetch('/UserLogin', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
           loginUsername: username,
           loginPassword: password,
           loginDeviceIdentifier: deviceIdentifier,
           loginDeviceInsertOption: 'N'
         })
-      });
+      })
 
-      const data = await response.json();
+      const text = await response.text()
+      if (!response.ok) {
+        setError(`Server error ${response.status}: ${text.substring(0, 200)}`)
+        return
+      }
+
+      let data: any
+      try {
+        data = JSON.parse(text)
+      } catch {
+        setError(`Unexpected response from server: ${text.substring(0, 200)}`)
+        return
+      }
 
       if (data.success) {
-        setLogin(username, instance, data.JSESSIONID);
-        onClose();
+        // Share JSESSIONID with Express proxy for subsequent requests
+        fetch('/api/sso-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsessionId: data.JSESSIONID })
+        }).catch(() => {})
+        // Cache credentials for next session
+        window.api?.saveCredentials(username, password).catch(() => {})
+        setLogin(data.userName || username, instance, data.JSESSIONID, data)
+        useScriptOptionsStore.getState().setInstance(instance)
+        onClose()
       } else {
-        setError(data.exception?.join(' ') || 'Login failed');
+        const msg = Array.isArray(data.exception)
+          ? data.exception.join(' ')
+          : data.exception || 'Login failed'
+        setError(msg)
       }
     } catch (err) {
-      setError('An error occurred during login');
-      console.error(err);
+      setError('Connection failed — is the Keystone server reachable?')
+      console.error('Login error:', err)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
+
+  if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden">
-        <div className="p-6">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="p-3 bg-blue-600 rounded-lg">
-              <LogIn className="w-6 h-6 text-white" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-full max-w-sm bg-[#252526] border border-[#414141] rounded-lg shadow-2xl">
+        <div className="px-6 pt-5 pb-4 border-b border-[#1e1e1e]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[#007acc] rounded-md">
+              <LogIn className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Keystone Login</h2>
-              <p className="text-slate-400 text-sm">Enter your credentials to connect</p>
+              <h2 className="text-sm font-bold text-white">Keystone Login</h2>
+              <p className="text-[11px] text-[#858585]">Connect to a Keystone instance</p>
             </div>
           </div>
+        </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Instance</label>
+        {/* SSO Attempting State */}
+        {ssoStatus === 'attempting' && !showManualLogin && (
+          <div className="px-6 py-8 flex flex-col items-center gap-3">
+            <Shield className="w-8 h-8 text-[#007acc] animate-pulse" />
+            <div className="text-sm text-white">Attempting SSO Login...</div>
+            <div className="text-[11px] text-[#858585]">Using Kerberos authentication</div>
+            <button
+              onClick={() => { setSsoStatus('failed'); setShowManualLogin(true) }}
+              className="mt-2 text-[10px] text-[#858585] hover:text-[#cccccc] underline"
+            >
+              Use username &amp; password instead
+            </button>
+          </div>
+        )}
+
+        {/* Manual Login Form */}
+        {(showManualLogin || ssoStatus === 'failed') && (
+          <form onSubmit={handleManualLogin} className="px-6 py-4 space-y-3">
+            {ssoStatus === 'failed' && !error && (
+              <div className="flex items-start gap-2 p-2.5 bg-[#3a3000]/40 border border-[#cca700]/30 rounded text-[#cca700] text-[11px]">
+                <Shield className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>SSO login was not available. Enter credentials manually.</span>
+              </div>
+            )}
+
+            {/* Server info (read-only) */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#858585] mb-1">
+                Keystone Server
+              </label>
               <div className="relative">
-                <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Globe className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#858585]" />
+                <input
+                  type="text"
+                  value={proxyEndpoint}
+                  readOnly
+                  className="w-full bg-[#1e1e1e] border border-[#414141] rounded pl-8 pr-3 py-2 text-xs text-[#858585] cursor-default"
+                  title="Configured in .env file"
+                />
+              </div>
+              <p className="text-[9px] text-[#6e6e6e] mt-1">Set PROXY_ENDPOINT in .env to change</p>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#858585] mb-1">
+                Instance
+              </label>
+              <div className="relative">
+                <Server className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#858585]" />
                 <select
                   value={instance}
                   onChange={(e) => setInstance(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-md py-2 pl-10 pr-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                  className="w-full bg-[#1e1e1e] border border-[#414141] rounded pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#007acc]"
                 >
-                  <option value="Test">Test</option>
-                  <option value="Prod">Prod</option>
-                  <option value="Dev">Dev</option>
+                  {supportedInstances.map((inst) => (
+                    <option key={inst} value={inst}>{inst}</option>
+                  ))}
                 </select>
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Username</label>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#858585] mb-1">
+                Username
+              </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#858585]" />
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter username"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-md py-2 pl-10 pr-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Username"
+                  className="w-full bg-[#1e1e1e] border border-[#414141] rounded pl-8 pr-3 py-2 text-xs text-white placeholder-[#6e6e6e] focus:outline-none focus:border-[#007acc]"
+                  autoFocus
                   required
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#858585] mb-1">
+                Password
+              </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#858585]" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-md py-2 pl-10 pr-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Password"
+                  className="w-full bg-[#1e1e1e] border border-[#414141] rounded pl-8 pr-3 py-2 text-xs text-white placeholder-[#6e6e6e] focus:outline-none focus:border-[#007acc]"
                   required
                 />
               </div>
             </div>
 
             {error && (
-              <div className="flex items-start space-x-2 p-3 bg-red-900/30 border border-red-500/50 rounded-md text-red-400 text-sm">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-2 p-2.5 bg-[#5a1d1d]/40 border border-[#f48771]/30 rounded text-[#f48771] text-[11px]">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
-            <div className="flex space-x-3 pt-4">
+            <div className="flex gap-2 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-slate-600 rounded-md text-slate-300 hover:bg-slate-700 transition-colors"
+                className="flex-1 px-3 py-2 border border-[#414141] rounded text-xs text-[#cccccc] hover:bg-[#383838] transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:text-slate-400 rounded-md text-white font-medium transition-colors flex items-center justify-center space-x-2"
+                className="flex-1 px-3 py-2 bg-[#007acc] hover:bg-[#1a8ad4] disabled:bg-[#004c7a] disabled:text-[#858585] rounded text-xs text-white font-medium transition-colors"
               >
-                {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span>Login</span>
-                    <LogIn className="w-4 h-4" />
-                  </>
-                )}
+                {isLoading ? 'Connecting...' : 'Login'}
               </button>
             </div>
           </form>
-        </div>
+        )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default LoginDialog;
+export default LoginDialog

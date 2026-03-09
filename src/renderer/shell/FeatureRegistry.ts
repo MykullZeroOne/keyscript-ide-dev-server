@@ -50,23 +50,24 @@ export interface FeatureDefinition {
 }
 
 interface FeatureRegistryState {
-  features: Map<string, FeatureDefinition>
+  features: FeatureDefinition[]
   registerFeature: (feature: FeatureDefinition) => void
-  getFeatures: () => FeatureDefinition[]
 }
 
-export const useFeatureRegistry = create<FeatureRegistryState>((set, get) => ({
-  features: new Map(),
+export const useFeatureRegistry = create<FeatureRegistryState>((set) => ({
+  features: [],
   registerFeature: (feature) => {
-    set((state) => {
-      const newFeatures = new Map(state.features)
-      newFeatures.set(feature.id, feature)
-      return { features: newFeatures }
-    })
-  },
-  getFeatures: () => Array.from(get().features.values())
+    set((state) => ({
+      features: [...state.features, feature]
+    }))
+  }
 }))
 
 export const registerFeature = (feature: FeatureDefinition) => {
   useFeatureRegistry.getState().registerFeature(feature)
+  if (feature.initialize) {
+    feature.initialize({}).catch((e) => {
+      console.warn(`Feature "${feature.id}" initialization failed:`, e)
+    })
+  }
 }

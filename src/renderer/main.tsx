@@ -1,11 +1,11 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
+import { installWebApiIfNeeded } from './api/webPolyfill'
 import App from './App'
 import './index.css'
-import { registerAllFeatures } from './features/registry'
 
-// Register features before rendering
-registerAllFeatures();
+// In browser mode (no Electron), install HTTP/WebSocket polyfill for window.api
+installWebApiIfNeeded()
 
 const container = document.getElementById('root')
 const root = createRoot(container!)

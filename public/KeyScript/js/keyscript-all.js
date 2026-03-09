@@ -9961,6 +9961,10 @@ CR.Core.refreshComponents = function (a) {
   });
 };
 CR.Core.getJSessionID = function (f) {
+  // IDE Patch: prefer CR.Login.JSESSIONID over cookie
+  if (CR.Login && CR.Login.JSESSIONID) {
+    return f ? CR.Login.JSESSIONID : "JSESSIONID=" + CR.Login.JSESSIONID;
+  }
   var d = "";
   var b = window.document.cookie;
   if (b.length > 0) {
@@ -18711,6 +18715,13 @@ CR.Login.mainPageLogin = function (a) {
       CR.Login.activeDirectoryLogonEnabled =
         b.activeDirectoryLogonEnabled || false;
       if (!b.success) {
+        // IDE Patch: if we have a JSESSIONID from script parameters,
+        // set it as a cookie and retry before showing login dialog
+        if (CR.Login.JSESSIONID && !document.cookie.includes("JSESSIONID=")) {
+          document.cookie = "JSESSIONID=" + CR.Login.JSESSIONID + "; path=/";
+          CR.Login.mainPageLogin(a);
+          return;
+        }
         CR.Login.performLogin({
           success: a,
           logonHTML: b.logonHTML,
