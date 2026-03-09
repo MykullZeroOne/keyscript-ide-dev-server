@@ -7,6 +7,7 @@ import {
 import { useEditorStore } from '../editor/EditorStore'
 import { useProjectStore } from '../../store/useProjectStore'
 import { useScriptOptionsStore } from '../script-options/ScriptOptionsStore'
+import { FolderPickerDialog } from './FolderPickerDialog'
 
 interface FileEntry {
   name: string
@@ -155,6 +156,8 @@ export const ScriptExplorerPanel: React.FC = () => {
   const [creating, setCreating] = useState<'file' | 'folder' | null>(null)
   const [createName, setCreateName] = useState('')
   const createRef = useRef<HTMLInputElement>(null)
+  const [showFolderPicker, setShowFolderPicker] = useState(false)
+  const isWebMode = !(window as any).electron
 
   useEffect(() => { loadRecent() }, [loadRecent])
 
@@ -178,11 +181,23 @@ export const ScriptExplorerPanel: React.FC = () => {
   }, [creating])
 
   const handleOpenFolder = async () => {
+    if (isWebMode) {
+      // Web mode — show folder picker dialog
+      setShowFolderPicker(true)
+      return
+    }
+    // Electron mode — native dialog
     const folder = await window.api?.openFolderDialog()
     if (folder) {
       setCurrentProject(folder)
       addRecent(folder)
     }
+  }
+
+  const handleFolderPicked = (folder: string) => {
+    setShowFolderPicker(false)
+    setCurrentProject(folder)
+    addRecent(folder)
   }
 
   const handleSwitchProject = (path: string) => {
@@ -255,6 +270,12 @@ export const ScriptExplorerPanel: React.FC = () => {
             </div>
           </div>
         )}
+
+        <FolderPickerDialog
+          open={showFolderPicker}
+          onSelect={handleFolderPicked}
+          onClose={() => setShowFolderPicker(false)}
+        />
       </div>
     )
   }
@@ -350,6 +371,12 @@ export const ScriptExplorerPanel: React.FC = () => {
           <X size={12} />
         </button>
       </div>
+
+      <FolderPickerDialog
+        open={showFolderPicker}
+        onSelect={handleFolderPicked}
+        onClose={() => setShowFolderPicker(false)}
+      />
     </div>
   )
 }

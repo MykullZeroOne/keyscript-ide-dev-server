@@ -156,18 +156,28 @@ export function setupFileRoutes(app: Express, workspace: string): void {
     }
   })
 
-  // Open folder — in web mode, list workspace subdirectories
-  app.get('/api/files/workspace-folders', async (_req, res) => {
+  // Browse directories — used by folder picker in web mode
+  app.post('/api/files/browse-dirs', json, async (req, res) => {
     try {
-      if (!existsSync(workspace)) return res.json([])
-      const entries = await readdir(workspace, { withFileTypes: true })
-      const folders = entries
+      const dirPath = req.body.path || workspace
+      if (!existsSync(dirPath)) return res.json({ path: dirPath, dirs: [], error: 'Path not found' })
+      const entries = await readdir(dirPath, { withFileTypes: true })
+      const dirs = entries
         .filter(e => e.isDirectory() && !e.name.startsWith('.'))
-        .map(e => path.join(workspace, e.name))
-      res.json(folders)
-    } catch {
-      res.json([])
+        .map(e => ({
+          name: e.name,
+          path: path.join(dirPath, e.name)
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      res.json({ path: dirPath, dirs })
+    } catch (e: any) {
+      res.json({ path: req.body.path, dirs: [], error: e.message })
     }
+  })
+
+  // Get workspace root
+  app.get('/api/files/workspace', (_req, res) => {
+    res.json({ workspace })
   })
 
   // Recent projects — stored in workspace/.keyscript-ide/projects.json
