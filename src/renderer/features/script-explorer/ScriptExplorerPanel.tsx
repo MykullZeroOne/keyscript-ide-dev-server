@@ -35,9 +35,16 @@ const getFileIcon = (name: string) => {
 }
 
 async function storeParametersAndRun(relativePath: string) {
-  // If using local File System Access, sync the file to the server first
+  // If using local File System Access, sync all files to server workspace
+  // so the Keystone proxy can serve them for RunScript
   if (hasFSAccess && fsAccess.hasLocalFolder()) {
-    await fsAccess.syncFileToServer(relativePath)
+    await fsAccess.syncAllToServer()
+    // Tell the proxy that the project is at /workspace (where synced files go)
+    await fetch('/api/set-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/workspace' })
+    }).catch(() => {})
   }
 
   const params = useScriptOptionsStore.getState().getScriptParameters()
@@ -222,6 +229,12 @@ export const ScriptExplorerPanel: React.FC = () => {
         setUseLocalFS(true)
         setCurrentProject(folderName)
         addRecent(folderName)
+        // Tell server the project path is /workspace (where synced files go)
+        fetch('/api/set-project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: '/workspace' })
+        }).catch(() => {})
       }
       return
     }
