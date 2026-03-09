@@ -3,9 +3,6 @@ import { Play, Loader } from 'lucide-react'
 import { useEditorStore } from '../editor/EditorStore'
 import { useScriptOptionsStore } from '../script-options/ScriptOptionsStore'
 import { useProjectStore } from '../../store/useProjectStore'
-import * as fsAccess from '../../api/fsAccessApi'
-
-const hasFSAccess = !(window as any).electron && typeof (window as any).showDirectoryPicker === 'function'
 
 async function storeParameters(): Promise<string | null> {
   const params = useScriptOptionsStore.getState().getScriptParameters()
@@ -25,18 +22,6 @@ async function storeParameters(): Promise<string | null> {
   return null
 }
 
-/** Sync local files to server before running */
-async function syncLocalFilesIfNeeded(): Promise<void> {
-  if (hasFSAccess && fsAccess.hasLocalFolder()) {
-    await fsAccess.syncAllToServer()
-    await fetch('/api/set-project', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: '/workspace' })
-    }).catch(() => {})
-  }
-}
-
 const RunButton: React.FC = () => {
   const { tabs, activeTabId, runScriptSplit } = useEditorStore()
   const [running, setRunning] = useState(false)
@@ -47,7 +32,6 @@ const RunButton: React.FC = () => {
     if (!isEditor || !activeTab?.path) return
     setRunning(true)
     try {
-      await syncLocalFilesIfNeeded()
       const paramsId = await storeParameters()
       // Convert absolute project paths to relative for RunScript
       const currentProject = useProjectStore.getState().currentProject
