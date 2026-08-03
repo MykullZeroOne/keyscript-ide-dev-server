@@ -30,6 +30,7 @@
     "@types/express-session": "^1.17.10",
     "@types/node": "^20.11.17",
     "cross-env": "^7.0.3",
-    "eslint": "^8.56.0"
+    "eslint": "^8.56.0",
+    "typescript": "^5.9.3"
   }
 }

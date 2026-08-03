@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Start Server" type="js.build_tools.npm">
+    <package-json value="$PROJECT_DIR$/package.json" />
+    <command value="run" />
+    <scripts>
+      <script value="server" />
+    </scripts>
+    <node-interpreter value="project" />
+    <envs>
+      <env name="NODE_TLS_REJECT_UNAUTHORIZED" value="0" />
+    </envs>
+    <method v="2">
+      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Build" run_configuration_type="js.build_tools.npm" />
+    </method>
+  </configuration>
+</component>

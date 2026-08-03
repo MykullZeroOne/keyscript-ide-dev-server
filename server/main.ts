@@ -1,3 +1,4 @@
+import { execSync } from 'child_process';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import https from 'https';
@@ -5,7 +6,7 @@ import bodyParser from 'body-parser';
 import express, { Express, NextFunction, Request, Response } from 'express';
 import proxy from 'express-http-proxy';
 import session from 'express-session';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { networkInterfaces } from 'os';
 import path from 'path';
 import { Data, Options } from 'sprightly';
@@ -28,6 +29,8 @@ const protocol = process.env.HTTPS === 'true' ? 'https' : 'http';
 const proxyEndpoint = process.env.PROXY_ENDPOINT ?? 'keystone:8443';
 //const sslPort = process.env.SSL_PORT ? Number(process.env.SSL_PORT) : hostPort + 443;
 const supportedInstances = (process.env.SUPPORTED_INSTANCES ?? 'Test').split('|');
+const bypassKerberos = process.env.BYPASS_KERBEROS === 'true';
+const standaloneService = process.env.STANDALONE_SERVICE === 'true';
 const rootPath = path.join(path.resolve('.'));
 
 app.use(session({
@@ -141,8 +144,16 @@ app.post('*', proxy(proxyEndpoint, {
     return req.url;
   },
   proxyReqBodyDecorator: function (bodyContent: Buffer, srcReq: Request) {
-    if (srcReq.session.recording) {
-      console.log('request:', bodyContent.toString('utf8'));
+    if (srcReq.originalUrl.includes('UserLogin')) {
+      const deviceId = process.env.DEVICE_ID ?? '';
+      let body = bodyContent.toString('utf-8').replace('loginDeviceInsertOption=N', 'loginDeviceInsertOption=Y');
+      if (deviceId) {
+        body = body.replace(/loginDeviceName=[^&]*/, `loginDeviceName=${encodeURIComponent(deviceId)}`);
+      }
+      bodyContent = Buffer.from(body);
+      console.log('[POST request]:', srcReq.originalUrl, body);
+    } else if (srcReq.session.recording) {
+      console.log('[POST request]:', srcReq.originalUrl, bodyContent.toString('utf8'));
     }
     if (srcReq.originalUrl.endsWith('/SessionStore')) {
       const seq = `//${++ideParamsSeq}//`;
@@ -153,6 +164,15 @@ app.post('*', proxy(proxyEndpoint, {
     return bodyContent; //.split('').reverse().join('');
   },
   userResDecorator: function (proxyRes, proxyResData, userReq, userRes) {
+    // Rewrite all proxied cookies: strip Secure flag (for HTTP) and normalize path to /
+    const cookies = proxyRes.headers['set-cookie'];
+    if (cookies) {
+      userRes.setHeader('set-cookie', cookies.map(c => {
+        let fixed = c.replace(/Path=\/\w+/gi, 'Path=/');
+        if (protocol === 'http') fixed = fixed.replace(/;\s*Secure/gi, '');
+        return fixed;
+      }));
+    }
     if (userReq.session.recording) {
       console.log('response:', proxyResData.toString('utf8')); //JSON.stringify(proxyResData));
     }
@@ -166,15 +186,11 @@ app.post('*', proxy(proxyEndpoint, {
         //console.log(store.id, params);
       }
     } else if (userReq.originalUrl.endsWith('/UserLogin')) {
-      const data = JSON.parse(proxyResData.toString('utf8'));
-      if (data.JSESSIONID) {
-        const cookies = proxyRes.headers['set-cookie'] ?? [];
-        const n = cookies.length;
-        for (let i = 0; i < n; i++) {
-          const cookie = cookies[i];
-          cookies.push(cookie.replace(/Path=\/\w+;/, 'Path=/;'));
-        }
-        userRes.setHeader('set-cookie', cookies);
+      console.log('[UserLogin response]:', proxyResData.toString('utf8'));
+      if (bypassKerberos) {
+        const data = JSON.parse(proxyResData.toString('utf8'));
+        data.activeDirectoryLogonEnabled = false;
+        return Buffer.from(JSON.stringify(data));
       }
     }
     return proxyResData;
@@ -292,7 +308,7 @@ app.get(['/Live/', '/Live', '/Live/*'], (req, res) => {
 //   res.render("./frame.html", { protocol, script, 'head-section': headElement });
 // });
 app.get('/lib/*', (req, res, next) => {
-  const lib = path.join(rootPath, `../dncu-keyscript-lib/${req.path}`);
+  const lib = path.join(rootPath, `libs/dncu-keyscript-lib/${req.path}`);
   if (existsSync(lib)) {
     res.sendFile(lib);
     return;
@@ -330,8 +346,26 @@ app.get('/', (req, res) => { res.redirect('/Test/Keyscript_IDE/') });
 app.get('*', intercept, proxy(proxyEndpoint, {
   https: true,
   proxyReqPathResolver: function (req) {
+    if (req.url.includes('/UserLogin')) {
+      const deviceId = process.env.DEVICE_ID ?? '';
+      req.url = req.url.replace('loginDeviceInsertOption=N', 'loginDeviceInsertOption=Y');
+      if (deviceId) {
+        req.url = req.url.replace(/loginDeviceName=[^&]*/, `loginDeviceName=${encodeURIComponent(deviceId)}`);
+      }
+    }
     console.log(req.url);
     return req.url;
+  },
+  userResDecorator: function (proxyRes, proxyResData, _userReq, userRes) {
+    const cookies = proxyRes.headers['set-cookie'];
+    if (cookies) {
+      userRes.setHeader('set-cookie', cookies.map(c => {
+        let fixed = c.replace(/Path=\/\w+/gi, 'Path=/');
+        if (protocol === 'http') fixed = fixed.replace(/;\s*Secure/gi, '');
+        return fixed;
+      }));
+    }
+    return proxyResData;
   }
 }));
 
@@ -344,14 +378,17 @@ var corsOptions = {
 }
 
 service.get('/GetDeviceInformation', cors(corsOptions), (req, res) => {
-  const net = networkInterfaces();
-  const info: string[] = [];
-  Object.keys(net).forEach(k => { info.push(...net[k]?.map(i => i.mac) ?? []); });
-  const mac_id = info.filter(i => i !== '00:00:00:00:00:00').sort().join(' ').replace(/:/g, '-');
+  let mac_id = process.env.DEVICE_ID ?? '';
+  if (!mac_id) {
+    const net = networkInterfaces();
+    const info: string[] = [];
+    Object.keys(net).forEach(k => { info.push(...net[k]?.map(i => i.mac) ?? []); });
+    mac_id = info.filter(i => i !== '00:00:00:00:00:00').sort().join(' ').replace(/:/g, '-');
+  }
   const deviceInfo = `<?xml version="1.0"?>
 <device type="c" xmlns="http://www.corelationinc.com/deviceLanguage/v1.0" version="2.0.0.0">
   <deviceInformation type="c">
-  <identifier>MAC: ${mac_id}</identifier>
+  <identifier>${process.env.DEVICE_ID ? mac_id : `MAC: ${mac_id}`}</identifier>
   <userServicePortNumber>${servicePort}</userServicePortNumber>
   </deviceInformation>
 </device>`;
@@ -359,6 +396,63 @@ service.get('/GetDeviceInformation', cors(corsOptions), (req, res) => {
 });
 service.get('*', (req, res) => { res.send("okay") });
 
+
+if (standaloneService) {
+  const standalonePort = 51763;
+  const certDir = path.join(rootPath, 'certs');
+  const standaloneCertFile = path.join(certDir, 'localhost.crt');
+  const standaloneKeyFile = path.join(certDir, 'localhost.key');
+
+  if (!existsSync(standaloneCertFile) || !existsSync(standaloneKeyFile)) {
+    mkdirSync(certDir, { recursive: true });
+    const configPath = path.join(certDir, 'openssl.cnf');
+    writeFileSync(configPath, [
+      '[req]',
+      'distinguished_name = req_distinguished_name',
+      'x509_extensions = v3_req',
+      'prompt = no',
+      '[req_distinguished_name]',
+      'CN = 127.0.0.1',
+      '[v3_req]',
+      'subjectAltName = IP:127.0.0.1',
+    ].join('\n') + '\n');
+    execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${standaloneKeyFile}" -out "${standaloneCertFile}" -days 365 -nodes -config "${configPath}"`);
+    console.log('[server]: Generated self-signed certificate for 127.0.0.1');
+  }
+
+  const standaloneApp: Express = express();
+  const keystoneOrigin = `https://${proxyEndpoint}`;
+  const standaloneCorsOptions = {
+    origin: [keystoneOrigin],
+    optionsSuccessStatus: 200
+  };
+
+  standaloneApp.get('/GetDeviceInformation', cors(standaloneCorsOptions), (req, res) => {
+    let mac_id = process.env.DEVICE_ID ?? '';
+    if (!mac_id) {
+      const net = networkInterfaces();
+      const info: string[] = [];
+      Object.keys(net).forEach(k => { info.push(...net[k]?.map(i => i.mac) ?? []); });
+      mac_id = info.filter(i => i !== '00:00:00:00:00:00').sort().join(' ').replace(/:/g, '-');
+    }
+    const deviceInfo = `<?xml version="1.0"?>
+<device type="c" xmlns="http://www.corelationinc.com/deviceLanguage/v1.0" version="2.0.0.0">
+  <deviceInformation type="c">
+  <identifier>${process.env.DEVICE_ID ? mac_id : `MAC: ${mac_id}`}</identifier>
+  <userServicePortNumber>${standalonePort}</userServicePortNumber>
+  </deviceInformation>
+</device>`;
+    res.send(deviceInfo);
+  });
+  standaloneApp.get('*', (req, res) => { res.send("okay") });
+
+  const standaloneSslCert = readFileSync(standaloneCertFile);
+  const standaloneSslKey = readFileSync(standaloneKeyFile);
+  const standaloneServer = https.createServer({ key: standaloneSslKey, cert: standaloneSslCert }, standaloneApp);
+  standaloneServer.listen(standalonePort, '127.0.0.1', () => {
+    console.log(`[server]: Standalone Corelation Service mock is running at https://127.0.0.1:${standalonePort}`);
+  });
+}
 
 if (protocol === 'http') {
   app.listen(hostPort, () => {

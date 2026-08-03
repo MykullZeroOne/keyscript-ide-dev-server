@@ -1,0 +1,17 @@
+<project name="keyscript-lib" default="build" basedir=".">
+    <description>
+       TypeScript declarations and utility classes for KeyScript development.
+    </description>
+    <property environment="env"/>
+
+    <target name="build">
+        <exec executable="tsc.cmd" dir="." />
+    </target>
+
+    <target name="clean" description="clean up">
+        <delete>
+            <fileset dir="." includes="lib/*.map lib/*.js"/>
+        </delete>
+    </target>
+
+</project>

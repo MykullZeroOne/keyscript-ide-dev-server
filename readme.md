@@ -54,6 +54,39 @@ See .env-sample for example values
 
     http://localhost:3000/Some_Other_Instance/KeyscriptIDE
 
+## Standalone Service Mode (Mac)
+
+Mac users can run the Corelation device service mock as a standalone HTTPS service so
+the **real** Keystone web app can detect the local device — no Windows background service
+needed.
+
+### Setup
+
+1. In `.env`, set:
+
+        STANDALONE_SERVICE=true
+        PROXY_ENDPOINT=keystonedev.revfcu.com:8443
+
+2. Build and start the server:
+
+        npm run build
+        npm run server
+
+    A self-signed certificate for `127.0.0.1` is generated automatically on first run.
+
+3. Open **https://127.0.0.1:51763** in your browser and accept the self-signed certificate.
+
+4. Navigate to your Keystone URL (e.g. `https://keystonedev.revfcu.com:8443/Development/`).
+   The web app will detect the local service mock and login should work normally.
+
+### Verify
+
+    curl -k https://127.0.0.1:51763/GetDeviceInformation
+
+You should see XML containing your device identifier and `<userServicePortNumber>51763</userServicePortNumber>`.
+
+---
+
 ### Launch scripts directly...
 
 Copy your script to the ./public/scripts folder of the project, then...

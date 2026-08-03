@@ -1,0 +1,9 @@
+**/node_modules/*
+*.map
+*.js
+package-lock.json
+pnpm-lock.yaml
+deploy.xml
+.gitea
+*.bak
+.vscode/settings.json
